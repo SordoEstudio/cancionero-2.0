@@ -2,12 +2,26 @@ import { createServerClient, type SetAllCookies } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isAuthDemoMode } from '@/lib/auth-demo';
 
-const PROTECTED_PATHS = ['/song/', '/api/save-version', '/api/version/', '/api/songs', '/api/versions'];
+const PROTECTED_PATHS = [
+  '/song/',
+  '/api/save-version',
+  '/api/version/',
+  '/api/songs',
+  '/api/versions',
+  '/api/import-song',
+];
+
+function pathRequiresAuth(pathname: string): boolean {
+  if (pathname === '/') return true;
+  return PROTECTED_PATHS.some((p) => pathname.startsWith(p));
+}
 
 export async function middleware(request: NextRequest) {
   if (isAuthDemoMode()) {
     return NextResponse.next();
   }
+
+  const pathname = request.nextUrl.pathname;
 
   const response = NextResponse.next({
     request: { headers: request.headers },
@@ -35,13 +49,9 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const isProtected = PROTECTED_PATHS.some((p) =>
-    request.nextUrl.pathname.startsWith(p)
-  );
-
-  if (isProtected && !session) {
+  if (!session && pathRequiresAuth(pathname)) {
     const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('next', request.nextUrl.pathname);
+    loginUrl.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

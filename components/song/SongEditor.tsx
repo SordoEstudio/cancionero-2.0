@@ -14,12 +14,14 @@ import { ViewModeSwitch } from '@/components/controls/ViewModeSwitch';
 import {
   Check,
   ChevronDown,
+  Menu,
   PanelRightClose,
   PanelRightOpen,
+  Pause,
   Save,
   SquarePen,
 } from 'lucide-react';
-import { ICON_CHEVRON, ICON_TOOLBAR, lucideDecorative } from '@/components/ui/icon-tokens';
+import { ICON_CHEVRON, ICON_INLINE, ICON_STROKE, ICON_TOOLBAR, lucideDecorative } from '@/components/ui/icon-tokens';
 import { IconButton, lucideInIconButton } from '@/components/ui/IconButton';
 
 interface SongEditorProps {
@@ -92,6 +94,78 @@ export function SongEditor({
   const [panelOpen, setPanelOpen] = useState(true);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
+  const songHeaderRef = useRef<HTMLElement>(null);
+  const [songHeaderInView, setSongHeaderInView] = useState(true);
+
+  const [scrollPlaying, setScrollPlaying] = useState(false);
+  const scrollRafRef = useRef<number | null>(null);
+  const scrollLastTsRef = useRef(0);
+  const scrollAccRef = useRef(0);
+  const scrollSpeedRef = useRef(scrollSpeed);
+
+  useEffect(() => {
+    scrollSpeedRef.current = scrollSpeed;
+  }, [scrollSpeed]);
+
+  const scrollStep = useCallback((ts: number) => {
+    const delta = (ts - scrollLastTsRef.current) / 1000;
+    scrollLastTsRef.current = ts;
+    scrollAccRef.current += delta * scrollSpeedRef.current;
+    const px = Math.floor(scrollAccRef.current);
+    if (px >= 1) {
+      window.scrollBy(0, px);
+      scrollAccRef.current -= px;
+    }
+    scrollRafRef.current = requestAnimationFrame(scrollStep);
+  }, []);
+
+  const pauseAutoScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+    }
+    setScrollPlaying(false);
+  }, []);
+
+  const playAutoScroll = useCallback(() => {
+    setPanelOpen(false);
+    scrollLastTsRef.current = performance.now();
+    scrollAccRef.current = 0;
+    scrollRafRef.current = requestAnimationFrame(scrollStep);
+    setScrollPlaying(true);
+  }, [scrollStep]);
+
+  const resetAutoScroll = useCallback(() => {
+    pauseAutoScroll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [pauseAutoScroll]);
+
+  const toggleAutoScroll = useCallback(() => {
+    if (scrollPlaying) pauseAutoScroll();
+    else playAutoScroll();
+  }, [scrollPlaying, pauseAutoScroll, playAutoScroll]);
+
+  useEffect(
+    () => () => {
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (editMode) pauseAutoScroll();
+  }, [editMode, pauseAutoScroll]);
+
+  useEffect(() => {
+    const el = songHeaderRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setSongHeaderInView(entry.isIntersecting),
+      { threshold: 0, rootMargin: '0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -343,9 +417,16 @@ export function SongEditor({
     ? 'Guardar como nueva versión'
     : 'Guardar cambios en esta versión';
 
+  const showFloatingChrome = scrollPlaying || !songHeaderInView;
+  const floatBtnClass =
+    'inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-lg backdrop-blur-sm transition-opacity hover:bg-[var(--bg-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]';
+
   return (
     <div className="min-h-screen bg-[var(--bg-base)]">
-      <header className="sticky top-0 z-20 bg-[var(--bg-base)] border-b border-[var(--border)] px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3">
+      <header
+        ref={songHeaderRef}
+        className="relative z-10 bg-[var(--bg-base)] border-b border-[var(--border)] px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3"
+      >
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-[var(--text-primary)] truncate">
             {song.title}
@@ -461,6 +542,38 @@ export function SongEditor({
         />
       )}
 
+      {showFloatingChrome && (
+        <div
+          className="fixed right-4 top-14 z-[160] flex items-center gap-2"
+          aria-label="Acciones rápidas"
+        >
+          {!songHeaderInView && (
+            <button
+              type="button"
+              className={floatBtnClass}
+              title={panelOpen ? 'Cerrar panel lateral' : 'Abrir panel (tono, vista, scroll)'}
+              aria-label={
+                panelOpen ? 'Cerrar panel lateral' : 'Abrir panel lateral de tono, vista y scroll'
+              }
+              onClick={() => setPanelOpen((o) => !o)}
+            >
+              <Menu size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+            </button>
+          )}
+          {scrollPlaying && (
+            <button
+              type="button"
+              className={`${floatBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`}
+              title="Pausar scroll"
+              aria-label="Pausar scroll automático"
+              onClick={pauseAutoScroll}
+            >
+              <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+
       {editMode && (
         <p className="mx-4 mt-2 text-xs text-[var(--text-muted)]">
           Editá acordes y letra. Los acordes se confirman al salir del campo (Tab o clic fuera). Usá el ícono de guardar para persistir.
@@ -489,7 +602,9 @@ export function SongEditor({
               <ScrollControl
                 speed={scrollSpeed}
                 onSpeedChange={setScrollSpeed}
-                onScrollSessionStart={() => setPanelOpen(false)}
+                playing={scrollPlaying}
+                onTogglePlay={toggleAutoScroll}
+                onReset={resetAutoScroll}
               />
             )}
             <ToneSelector

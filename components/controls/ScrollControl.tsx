@@ -1,6 +1,5 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUpToLine, Pause, Play } from 'lucide-react';
 import { Slider } from '@/components/ui/Slider';
 import { ICON_INLINE, ICON_STROKE, lucideDecorative } from '@/components/ui/icon-tokens';
@@ -26,76 +25,21 @@ function speedToSlider(speed: number): number {
   );
 }
 
-interface ScrollControlProps {
-  speed?: number;
-  onSpeedChange?: (speed: number) => void;
-  /** Al iniciar scroll automático (p. ej. ocultar panel y ganar espacio de lectura). */
-  onScrollSessionStart?: () => void;
+export interface ScrollControlProps {
+  speed: number;
+  onSpeedChange: (speed: number) => void;
+  playing: boolean;
+  onTogglePlay: () => void;
+  onReset: () => void;
 }
 
 export function ScrollControl({
-  speed: controlledSpeed,
+  speed,
   onSpeedChange,
-  onScrollSessionStart,
+  playing,
+  onTogglePlay,
+  onReset,
 }: ScrollControlProps) {
-  const [playing, setPlaying] = useState(false);
-  const [internalSpeed, setInternalSpeed] = useState(SCROLL_SPEED_DEFAULT);
-  const controlled =
-    controlledSpeed !== undefined && onSpeedChange !== undefined;
-  const speed = controlled ? controlledSpeed : internalSpeed;
-  const setSpeed = controlled ? onSpeedChange : setInternalSpeed;
-
-  const rafRef = useRef<number | null>(null);
-  const lastTsRef = useRef<number>(0);
-  const accRef = useRef<number>(0);
-  const speedRef = useRef<number>(speed);
-
-  useEffect(() => {
-    speedRef.current = speed;
-  }, [speed]);
-
-  const step = useCallback((ts: number) => {
-    const delta = (ts - lastTsRef.current) / 1000;
-    lastTsRef.current = ts;
-    accRef.current += delta * speedRef.current;
-
-    const px = Math.floor(accRef.current);
-    if (px >= 1) {
-      window.scrollBy({ top: px, behavior: 'instant' as ScrollBehavior });
-      accRef.current -= px;
-    }
-
-    rafRef.current = requestAnimationFrame(step);
-  }, []);
-
-  const pause = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    setPlaying(false);
-  }, []);
-
-  const play = useCallback(() => {
-    onScrollSessionStart?.();
-    lastTsRef.current = performance.now();
-    accRef.current = 0;
-    rafRef.current = requestAnimationFrame(step);
-    setPlaying(true);
-  }, [step, onScrollSessionStart]);
-
-  const reset = useCallback(() => {
-    pause();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [pause]);
-
-  useEffect(
-    () => () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    },
-    []
-  );
-
   const playIcon = lucideDecorative(ICON_INLINE);
 
   return (
@@ -107,7 +51,7 @@ export function ScrollControl({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={playing ? pause : play}
+          onClick={onTogglePlay}
           title={playing ? 'Pausar scroll' : 'Iniciar scroll'}
           aria-label={playing ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
           className={[
@@ -126,7 +70,7 @@ export function ScrollControl({
 
         <IconButton
           label="Volver arriba"
-          onClick={reset}
+          onClick={onReset}
           className="border border-[var(--border)] bg-[var(--bg-elevated)] hover:bg-[var(--border)]"
         >
           <ArrowUpToLine {...lucideDecorative(ICON_INLINE)} />
@@ -138,7 +82,7 @@ export function ScrollControl({
         min={SCROLL_SPEED_MIN}
         max={SCROLL_SPEED_MAX}
         value={speedToSlider(speed)}
-        onChange={(v) => setSpeed(sliderToSpeed(v))}
+        onChange={(v) => onSpeedChange(sliderToSpeed(v))}
         formatValue={(v) => `${sliderToSpeed(v)} px/s`}
       />
     </div>
