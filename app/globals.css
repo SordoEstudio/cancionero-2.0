@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Tokens de color ───────────────────────────────────────────────────────
+   Para cambiar la paleta completa, editar solo esta sección.
+   Referenciados via var(--token) en Tailwind y en componentes.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Superficie */
+  --bg-base:        #ffffff;
+  --bg-surface:     #f8fafc;
+  --bg-elevated:    #f1f5f9;
+  --bg-overlay:     rgba(0, 0, 0, 0.4);
+
+  /* Bordes */
+  --border:         #e2e8f0;
+  --border-strong:  #cbd5e1;
+
+  /* Texto */
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --text-inverse:   #ffffff;
+
+  /* Marca / acción */
+  --accent:         #2563eb;
+  --accent-hover:   #1d4ed8;
+  --accent-muted:   #dbeafe;
+  --accent-text:    #1e40af;
+
+  /* Acordes */
+  --chord-color:    #2563eb;
+  --chord-bg:       #eff6ff;
+
+  /* Secciones musicales */
+  --section-intro:     #7c3aed;
+  --section-verse:     #059669;
+  --section-chorus:    #dc2626;
+  --section-bridge:    #d97706;
+  --section-default:   #64748b;
+
+  /* Estado */
+  --success:        #16a34a;
+  --warning:        #ca8a04;
+  --danger:         #dc2626;
+
+  /* Scroll */
+  --scroll-bar:     #cbd5e1;
+}
+
+/* ─── Modo oscuro ────────────────────────────────────────────────────────── */
+.dark {
+  --bg-base:        #0f172a;
+  --bg-surface:     #1e293b;
+  --bg-elevated:    #334155;
+  --bg-overlay:     rgba(0, 0, 0, 0.6);
+
+  --border:         #334155;
+  --border-strong:  #475569;
+
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+  --text-inverse:   #0f172a;
+
+  --accent:         #3b82f6;
+  --accent-hover:   #60a5fa;
+  --accent-muted:   #1e3a5f;
+  --accent-text:    #93c5fd;
+
+  --chord-color:    #60a5fa;
+  --chord-bg:       #1e3a5f;
+
+  --section-intro:     #a78bfa;
+  --section-verse:     #34d399;
+  --section-chorus:    #f87171;
+  --section-bridge:    #fbbf24;
+  --section-default:   #94a3b8;
+
+  --success:        #4ade80;
+  --warning:        #fbbf24;
+  --danger:         #f87171;
+
+  --scroll-bar:     #475569;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ─── Utilidades de token ─────────────────────────────────────────────────
+   Clases helper para usar tokens directamente sin Tailwind arbitrario
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .bg-base      { background-color: var(--bg-base); }
+  .bg-surface   { background-color: var(--bg-surface); }
+  .bg-elevated  { background-color: var(--bg-elevated); }
+  .border-token { border-color: var(--border); }
+  .text-token   { color: var(--text-primary); }
+  .text-muted   { color: var(--text-muted); }
+  .text-secondary-token { color: var(--text-secondary); }
+  .text-accent  { color: var(--accent); }
+  .accent-bg    { background-color: var(--accent); color: var(--text-inverse); }
+  .chord-text   { color: var(--chord-color); }
+  .chord-bg     { background-color: var(--chord-bg); }
+}
+
+/* ─── Scrollbar personalizado ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-bar);
+  border-radius: 3px;
+}
+
+/* ─── Fuente monoespaciada para acordes ──────────────────────────────────── */
+.song-content {
+  font-family: 'Courier New', Courier, monospace;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.chord-line {
+  color: var(--chord-color);
+  font-weight: 600;
+  min-height: 1.2em;
+}
+
+.lyric-line {
+  color: var(--text-primary);
+  min-height: 1.2em;
+}
