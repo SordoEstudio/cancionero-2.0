@@ -16,7 +16,8 @@ export function templateReferenceLength(line: ParsedLine): number {
 }
 
 /**
- * Remapea posiciones de acordes de una línea a otra proporcionalmente (misma progresión, otro largo de letra).
+ * Remapea posiciones de acordes proporcionalmente al largo de la letra destino.
+ * Descarta acordes que no caben sin superponerse textualmente.
  */
 export function remapChordPositions(
   chords: ChordToken[],
@@ -33,13 +34,21 @@ export function remapChordPositions(
   }));
 
   scaled.sort((a, b) => a.position - b.position);
+
+  // Keep only chords that fit without textual overlap
+  const result: ChordToken[] = [scaled[0]];
   for (let i = 1; i < scaled.length; i++) {
-    if (scaled[i].position <= scaled[i - 1].position) {
-      scaled[i].position = Math.min(scaled[i - 1].position + 1, toLen - 1);
+    const prev = result[result.length - 1];
+    const minNext = prev.position + prev.chord.length + 1;
+    if (minNext <= toLen - 1) {
+      result.push({
+        chord: scaled[i].chord,
+        position: Math.max(scaled[i].position, minNext),
+      });
     }
   }
 
-  return scaled;
+  return result;
 }
 
 /**

@@ -1,14 +1,21 @@
+import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getDemoUserId, isAuthDemoMode } from '@/lib/auth-demo';
 import { scrapeSong } from '@/lib/scraper';
 import { isScrapeError } from '@/lib/scraper/types';
 import { parseSong } from '@/lib/parser';
+import { cleanWithGemini } from '@/lib/ai/gemini-parse';
 import { ImportSongSchema } from '@/lib/validation/schemas';
 import type { ParsedSong, ParsedSection, ParsedLine } from '@/types';
 
+function parsedSongHasContent(song: ParsedSong): boolean {
+  return song.sections.some((sec) =>
+    sec.lines.some((l) => l.chords.length > 0 || l.text.trim().length > 0)
+  );
+}
+
 export async function POST(request: NextRequest) {
-  // 1. Validar body
   let body: unknown;
   try {
     body = await request.json();
@@ -19,12 +26,10 @@ export async function POST(request: NextRequest) {
   const parsed = ImportSongSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.errors[0]?.message ?? 'URL inválida' },
+      { error: parsed.error.errors[0]?.message ?? 'Datos de importación inválidos' },
       { status: 400 }
     );
   }
-
-  const { url } = parsed.data;
 
   const authClient = await createClient();
   const {
@@ -35,7 +40,75 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // 2. Verificar si ya fue importada (deduplicación)
+  if (parsed.data.mode === 'paste') {
+    const { text, title, artist } = parsed.data;
+    const hintTitle = title && title.length > 0 ? title : 'Canción pegada';
+    const hintArtist = artist && artist.length > 0 ? artist : '';
+    const sourceUrl = `paste://${randomUUID()}`;
+
+    let rawTitle = hintTitle;
+    let rawArtist = hintArtist;
+    let rawContent = text;
+    let detectedKey: string | null = null;
+
+    try {
+      const cleaned = await cleanWithGemini(text, hintTitle, hintArtist);
+      rawTitle = cleaned.title;
+      rawArtist = cleaned.artist;
+      rawContent = cleaned.cleanedContent;
+      detectedKey = cleaned.originalKey;
+    } catch (aiErr) {
+      console.warn('Gemini clean falló, parseando texto crudo:', aiErr);
+    }
+
+    const songData = parseSong(
+      { title: rawTitle, artist: rawArtist, sourceUrl, rawContent },
+      { inferChords: false }
+    );
+
+    if (detectedKey && !songData.originalKey) {
+      songData.originalKey = detectedKey;
+    }
+
+    if (!parsedSongHasContent(songData)) {
+      return NextResponse.json(
+        { error: 'No se detectó cifra ni letra en el texto.' },
+        { status: 422 }
+      );
+    }
+
+    const { data: song, error: songError } = await supabase
+      .from('songs')
+      .insert({
+        title: songData.title,
+        artist: songData.artist,
+        source_url: sourceUrl,
+        original_key: songData.originalKey,
+        imported_by: importedBy,
+      })
+      .select('id')
+      .single();
+
+    if (songError || !song) {
+      console.error('Error guardando canción (pegado):', songError);
+      return NextResponse.json({ error: 'Error al guardar la canción' }, { status: 500 });
+    }
+
+    try {
+      await saveSections(supabase, song.id, songData.sections);
+    } catch (err) {
+      console.error('Error guardando secciones (pegado):', err);
+    }
+
+    return NextResponse.json({
+      id: song.id,
+      title: songData.title,
+      artist: songData.artist,
+    });
+  }
+
+  const url = parsed.data.url;
+
   const { data: existing } = await supabase
     .from('songs')
     .select('id, title, artist')
@@ -56,7 +129,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: existing.id, title: existing.title, artist: existing.artist });
   }
 
-  // 3. Scraping
   const scrapeResult = await scrapeSong(url);
   if (isScrapeError(scrapeResult)) {
     const statusMap: Record<string, number> = {
@@ -71,10 +143,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 4. Parsear
   const songData: ParsedSong = parseSong(scrapeResult);
 
-  // 5. Guardar en Supabase (imported_by = usuario logueado o demo, para que aparezca en GET /api/songs)
   const { data: song, error: songError } = await supabase
     .from('songs')
     .insert({
@@ -92,12 +162,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Error al guardar la canción' }, { status: 500 });
   }
 
-  // 6. Guardar secciones y líneas
   try {
     await saveSections(supabase, song.id, songData.sections);
   } catch (err) {
     console.error('Error guardando secciones:', err);
-    // La canción ya fue guardada, no es fatal
   }
 
   return NextResponse.json({

@@ -1,14 +1,19 @@
 import { classifyAndPairLines, splitIntoBlocks } from './line-classifier';
 import { inferChordsInSections } from './chord-inference';
 import { detectMainKey } from './chord-detector';
-import { detectSectionType } from '@/lib/structure';
-import type { ParsedSong, ParsedSection } from '@/types';
+import { detectAllSectionTypes } from '@/lib/structure';
+import type { ParsedSong, ParsedSection, SectionType } from '@/types';
 import type { RawSongData } from '@/lib/scraper/types';
 
-export function parseSong(raw: RawSongData): ParsedSong {
+interface ParseOptions {
+  /** Repetir acordes en secciones de solo letra (útil para LaCuerda/CifraClub). Default: true. */
+  inferChords?: boolean;
+}
+
+export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
+  const { inferChords = true } = opts ?? {};
   const blocks = splitIntoBlocks(raw.rawContent);
 
-  // Recolectar todas las líneas de acorde para detectar la tonalidad
   const allChordLines: string[] = [];
   for (const block of blocks) {
     for (const line of block.rawLines) {
@@ -17,18 +22,29 @@ export function parseSong(raw: RawSongData): ParsedSong {
   }
   const originalKey = detectMainKey(allChordLines);
 
+  // Detectar tipos con contexto completo
+  const types = detectAllSectionTypes(blocks);
+
+  // Contar cuántas veces aparece cada tipo para decidir si numerar
+  const typeCounts: Record<string, number> = {};
+  for (const t of types) typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+
+  const counters: Record<string, number> = {};
+
   const sectionsRaw: ParsedSection[] = blocks.map((block, idx) => {
     const lines = classifyAndPairLines(block.rawLines.join('\n'));
-    const sectionType = detectSectionType(block, idx, blocks.length);
+    const sectionType = types[idx];
+    counters[sectionType] = (counters[sectionType] ?? 0) + 1;
+    const showNumber = typeCounts[sectionType] > 1;
 
     return {
       type: sectionType,
-      label: block.label ?? formatLabel(sectionType, idx),
+      label: block.label ?? formatLabel(sectionType, showNumber ? counters[sectionType] : 0),
       lines,
     };
   });
 
-  const sections = inferChordsInSections(sectionsRaw);
+  const sections = inferChords ? inferChordsInSections(sectionsRaw) : sectionsRaw;
 
   return {
     title: raw.title,
@@ -39,16 +55,17 @@ export function parseSong(raw: RawSongData): ParsedSong {
   };
 }
 
-function formatLabel(type: string, idx: number): string {
+function formatLabel(type: SectionType | string, num: number): string {
   const labels: Record<string, string> = {
     intro: 'Intro',
-    verse: `Estrofa ${idx}`,
+    verse: 'Verso',
     'pre-chorus': 'Pre-coro',
     chorus: 'Coro',
     bridge: 'Puente',
     solo: 'Solo',
     outro: 'Final',
-    unknown: `Sección ${idx + 1}`,
+    unknown: 'Sección',
   };
-  return labels[type] ?? `Sección ${idx + 1}`;
+  const base = labels[type] ?? 'Sección';
+  return num > 0 ? `${base} ${num}` : base;
 }

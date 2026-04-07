@@ -130,51 +130,41 @@ export async function DELETE(
     return NextResponse.json({ error: 'ID de versión inválido' }, { status: 400 });
   }
 
-  async function applyDelete(client: SupabaseClient, userId: string) {
-    const { data: row, error: selErr } = await client
-      .from('song_versions')
-      .select('id')
-      .eq('id', versionId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (selErr || !row) {
-      return { ok: false as const, status: 404 as const, message: 'Versión no encontrada' };
-    }
-
-    const { error: delErr } = await client.from('song_versions').delete().eq('id', versionId);
-    if (delErr) {
-      console.error('Error borrando versión:', delErr);
-      return { ok: false as const, status: 500 as const, message: 'No se pudo eliminar' };
-    }
-
-    return { ok: true as const };
-  }
+  const admin = createServiceClient();
+  let userId: string | null = null;
 
   if (isAuthDemoMode()) {
-    const demoId = getDemoUserId();
-    if (!demoId) {
+    userId = getDemoUserId() ?? null;
+    if (!userId) {
       return NextResponse.json({ error: 'Demo sin DEMO_USER_ID' }, { status: 403 });
     }
-    const admin = createServiceClient();
-    const result = await applyDelete(admin, demoId);
-    if (!result.ok) {
-      return NextResponse.json({ error: result.message }, { status: result.status });
+  } else {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
-    return NextResponse.json({ ok: true, demo: true });
+    userId = user.id;
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  const { data: row, error: selErr } = await admin
+    .from('song_versions')
+    .select('id')
+    .eq('id', versionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (selErr || !row) {
+    return NextResponse.json({ error: 'Versión no encontrada' }, { status: 404 });
   }
 
-  const result = await applyDelete(supabase, user.id);
-  if (!result.ok) {
-    return NextResponse.json({ error: result.message }, { status: result.status });
+  const { error: delErr } = await admin.from('song_versions').delete().eq('id', versionId);
+  if (delErr) {
+    console.error('Error borrando versión:', delErr);
+    return NextResponse.json({ error: 'No se pudo eliminar' }, { status: 500 });
   }
+
   return NextResponse.json({ ok: true });
 }

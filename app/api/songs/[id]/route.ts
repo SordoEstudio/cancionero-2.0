@@ -14,50 +14,37 @@ export async function DELETE(
     return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
   }
 
+  const admin = createServiceClient();
+
+  let userId: string | null = null;
+
   if (isAuthDemoMode()) {
-    const demoId = getDemoUserId();
-    if (!demoId) {
+    userId = getDemoUserId() ?? null;
+    if (!userId) {
       return NextResponse.json({ error: 'Demo sin DEMO_USER_ID' }, { status: 403 });
     }
-    const admin = createServiceClient();
-    const { data: row } = await admin
-      .from('songs')
-      .select('id, imported_by')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (!row || row.imported_by !== demoId) {
-      return NextResponse.json({ error: 'Canción no encontrada' }, { status: 404 });
+  } else {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
-
-    const { error } = await admin.from('songs').delete().eq('id', id);
-    if (error) {
-      console.error('Error borrando canción (demo):', error);
-      return NextResponse.json({ error: 'No se pudo eliminar' }, { status: 500 });
-    }
-    return NextResponse.json({ ok: true });
+    userId = user.id;
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-  }
-
-  const { data: row } = await supabase
+  const { data: row } = await admin
     .from('songs')
-    .select('id')
+    .select('id, imported_by')
     .eq('id', id)
-    .eq('imported_by', user.id)
     .maybeSingle();
 
-  if (!row) {
+  if (!row || row.imported_by !== userId) {
     return NextResponse.json({ error: 'Canción no encontrada' }, { status: 404 });
   }
 
-  const { error } = await supabase.from('songs').delete().eq('id', id);
+  const { error } = await admin.from('songs').delete().eq('id', id);
   if (error) {
     console.error('Error borrando canción:', error);
     return NextResponse.json({ error: 'No se pudo eliminar' }, { status: 500 });

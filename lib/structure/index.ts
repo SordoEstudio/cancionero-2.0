@@ -1,7 +1,7 @@
 import type { SectionType } from '@/types';
 import type { RawBlock } from '@/lib/parser/line-classifier';
+import { isChordLine } from '@/lib/parser/chord-detector';
 
-// Etiquetas explícitas mapeadas a SectionType
 const LABEL_MAP: Record<string, SectionType> = {
   intro: 'intro',
   introducción: 'intro',
@@ -26,7 +26,6 @@ const LABEL_MAP: Record<string, SectionType> = {
   fin: 'outro',
 };
 
-/** Hash de contenido de un bloque para detectar repeticiones */
 function blockHash(block: RawBlock): string {
   return block.rawLines
     .map((l) => l.trim().toLowerCase())
@@ -34,10 +33,18 @@ function blockHash(block: RawBlock): string {
     .join('|');
 }
 
+function isInstrumentalBlock(block: RawBlock): boolean {
+  return block.rawLines.every((l) => {
+    const t = l.trim();
+    return t === '' || isChordLine(t);
+  });
+}
+
 /**
  * Detecta el SectionType de un bloque usando:
- * 1. Etiqueta explícita (la más confiable)
- * 2. Heurísticas por posición y repetición
+ *   1. Etiqueta explícita
+ *   2. Contenido instrumental (solo acordes, sin letra)
+ *   3. Heurísticas de repetición y posición
  */
 export function detectSectionType(
   block: RawBlock,
@@ -57,33 +64,37 @@ export function detectSectionType(
     }
   }
 
-  // 2. Heurísticas posicionales
-  if (!allBlocks) return 'unknown';
+  // 2. Instrumental: solo líneas de acordes, ninguna letra
+  if (isInstrumentalBlock(block)) {
+    if (index === 0) return 'intro';
+    if (index === totalBlocks - 1) return 'outro';
+    return 'solo';
+  }
+
+  // 3. Heurísticas con contexto
+  if (!allBlocks) return 'verse';
 
   const hashes = allBlocks.map(blockHash);
   const currentHash = hashes[index];
   const occurrences = hashes.filter((h) => h === currentHash).length;
 
-  // Primero bloque corto sin acordes → intro
-  if (index === 0 && block.rawLines.length <= 4) return 'intro';
-
-  // Último bloque → outro
+  // Último bloque único → outro
   if (index === totalBlocks - 1 && occurrences === 1) return 'outro';
 
-  // Bloque más repetido → chorus
-  const maxOccurrences = Math.max(...hashes.map((h) => hashes.filter((x) => x === h).length));
-  if (occurrences === maxOccurrences && occurrences > 1) return 'chorus';
+  // Bloque más repetido (si aparece >1 vez) → chorus
+  const maxOcc = Math.max(
+    ...hashes.map((h) => hashes.filter((x) => x === h).length)
+  );
+  if (occurrences === maxOcc && occurrences > 1) return 'chorus';
 
-  // Bloque único al final → bridge
+  // Bloque único en la zona final → bridge
   if (occurrences === 1 && index > totalBlocks * 0.6) return 'bridge';
 
-  // Por defecto → verse
   return 'verse';
 }
 
 /**
- * Versión completa con contexto de todos los bloques.
- * Usada para detectar chorus/bridge con heurísticas de repetición.
+ * Detecta tipos de todas las secciones con contexto completo.
  */
 export function detectAllSectionTypes(blocks: RawBlock[]): SectionType[] {
   return blocks.map((block, idx) =>

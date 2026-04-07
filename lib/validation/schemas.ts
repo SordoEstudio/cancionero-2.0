@@ -1,21 +1,36 @@
 import { z } from 'zod';
 
-export const ImportSongSchema = z.object({
-  url: z
-    .string()
-    .url('URL inválida')
-    .refine(
-      (url) => {
-        try {
-          const host = new URL(url).hostname.toLowerCase();
-          return host.includes('lacuerda.net') || host.includes('cifraclub.com');
-        } catch {
-          return false;
-        }
-      },
-      { message: 'URL debe ser de lacuerda.net o cifraclub.com' }
-    ),
-});
+const lacuerdaOrCifraclubUrl = z
+  .string()
+  .url('URL inválida')
+  .refine(
+    (url) => {
+      try {
+        const host = new URL(url).hostname.toLowerCase();
+        return host.includes('lacuerda.net') || host.includes('cifraclub.com');
+      } catch {
+        return false;
+      }
+    },
+    { message: 'URL debe ser de lacuerda.net o cifraclub.com' }
+  );
+
+export const ImportSongSchema = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('url'),
+    url: lacuerdaOrCifraclubUrl,
+  }),
+  z.object({
+    mode: z.literal('paste'),
+    text: z
+      .string()
+      .trim()
+      .min(1, 'Pegá el texto de la cifra')
+      .max(200_000, 'El texto es demasiado largo'),
+    title: z.string().trim().max(200).optional(),
+    artist: z.string().trim().max(200).optional(),
+  }),
+]);
 
 const VIEW_MODE_VALUES = z.enum([
   'default',

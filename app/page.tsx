@@ -5,14 +5,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 import { SongImportSkeleton } from '@/components/song/SongImportSkeleton';
 import type { DbSong, SavedVersionListItem } from '@/types';
 import { Trash2 } from 'lucide-react';
 import { ICON_INLINE, ICON_STROKE } from '@/components/ui/icon-tokens';
 
+type ImportMode = 'url' | 'paste';
+
 export default function HomePage() {
   const router = useRouter();
+  const [importMode, setImportMode] = useState<ImportMode>('url');
   const [url, setUrl] = useState('');
+  const [pastedText, setPastedText] = useState('');
+  const [pasteTitle, setPasteTitle] = useState('');
+  const [pasteArtist, setPasteArtist] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<DbSong[]>([]);
@@ -85,18 +92,33 @@ export default function HomePage() {
     e.preventDefault();
     setError(null);
 
-    if (!url.trim()) {
-      setError('Ingresá una URL');
+    if (importMode === 'url') {
+      if (!url.trim()) {
+        setError('Ingresá una URL');
+        return;
+      }
+    } else if (!pastedText.trim()) {
+      setError('Pegá el texto de la cifra');
       return;
     }
 
     setLoading(true);
     try {
+      const payload =
+        importMode === 'url'
+          ? { mode: 'url' as const, url: url.trim() }
+          : {
+              mode: 'paste' as const,
+              text: pastedText,
+              ...(pasteTitle.trim() ? { title: pasteTitle.trim() } : {}),
+              ...(pasteArtist.trim() ? { artist: pasteArtist.trim() } : {}),
+            };
+
       const res = await fetch('/api/import-song', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -172,8 +194,8 @@ export default function HomePage() {
           Cancionero Pro
         </h1>
         <p className="text-[var(--text-secondary)]">
-          Importá acordes de LaCuerda o CifraClub, transponé al tono que necesitás
-          y tocá con scroll automático.
+          Importá desde LaCuerda o CifraClub, pegá una cifra en texto, transponé y tocá con scroll
+          automático.
         </p>
       </div>
 
@@ -181,17 +203,102 @@ export default function HomePage() {
         <h2 className="text-sm font-semibold uppercase tracking-widest text-[var(--text-muted)]">
           Importar canción
         </h2>
-        <Input
-          label="URL de la canción"
-          type="url"
-          placeholder="https://www.lacuerda.net/... o https://www.cifraclub.com/..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          error={error ?? undefined}
-          disabled={loading}
-        />
+
+        <div
+          className="flex rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-0.5"
+          role="tablist"
+          aria-label="Forma de importación"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={importMode === 'url'}
+            className={[
+              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              importMode === 'url'
+                ? 'bg-[var(--accent)] text-white shadow-sm'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            ].join(' ')}
+            onClick={() => {
+              setImportMode('url');
+              setError(null);
+            }}
+          >
+            Desde URL
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={importMode === 'paste'}
+            className={[
+              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              importMode === 'paste'
+                ? 'bg-[var(--accent)] text-white shadow-sm'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            ].join(' ')}
+            onClick={() => {
+              setImportMode('paste');
+              setError(null);
+            }}
+          >
+            Pegar texto
+          </button>
+        </div>
+
+        {importMode === 'url' ? (
+          <Input
+            label="URL de la canción"
+            type="url"
+            placeholder="https://www.lacuerda.net/... o https://www.cifraclub.com/..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            error={error ?? undefined}
+            disabled={loading}
+          />
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Título (opcional)"
+                type="text"
+                placeholder="Si no ponés nada: Canción pegada"
+                value={pasteTitle}
+                onChange={(e) => setPasteTitle(e.target.value)}
+                disabled={loading}
+              />
+              <Input
+                label="Artista (opcional)"
+                type="text"
+                placeholder="Ej. nombre del autor"
+                value={pasteArtist}
+                onChange={(e) => setPasteArtist(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <Textarea
+              label="Cifra pegada"
+              placeholder={
+                'Ejemplo:\n' +
+                'Am          F          C\n' +
+                'Primera línea de la letra aquí...\n' +
+                'G              D\n' +
+                'Segunda línea...'
+              }
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              error={error ?? undefined}
+              disabled={loading}
+              spellCheck={false}
+            />
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              Mismo estilo que LaCuerda: líneas de acordes y debajo la letra. Podés pegar varias
+              secciones separadas por líneas en blanco.
+            </p>
+          </>
+        )}
+
         <Button type="submit" loading={loading} size="lg">
-          {loading ? 'Importando...' : 'Importar canción'}
+          {loading ? 'Importando...' : importMode === 'url' ? 'Importar canción' : 'Guardar cifra pegada'}
         </Button>
       </form>
 
