@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MiniToast, type MiniToastKind } from '@/components/ui/MiniToast';
 import { useRouter } from 'next/navigation';
-import type { ChordToken, FullSong, SongSectionWithLines, SongVersionActive, ViewMode } from '@/types';
+import type { ChordToken, FullSong, SectionType, SongSectionWithLines, SongVersionActive, ViewMode } from '@/types';
 import { preferFlats, transposeChord } from '@/lib/transpose';
 import { buildVersionOverrides } from '@/lib/version-overrides';
 import { sectionsSnapshot } from '@/lib/sections-snapshot';
@@ -14,7 +14,9 @@ import { ViewModeSwitch } from '@/components/controls/ViewModeSwitch';
 import {
   Check,
   ChevronDown,
+  Maximize2,
   Menu,
+  Minimize2,
   PanelRightClose,
   PanelRightOpen,
   Pause,
@@ -36,6 +38,8 @@ type PrefsBaseline = {
   capo: number;
   viewMode: ViewMode;
   scrollSpeed: number;
+  hiddenTabs: string[];
+  notes: string;
 };
 
 function cloneSections(sections: SongSectionWithLines[]): SongSectionWithLines[] {
@@ -53,8 +57,20 @@ function prefsEqual(a: PrefsBaseline, b: PrefsBaseline): boolean {
     a.transposeSteps === b.transposeSteps &&
     a.capo === b.capo &&
     a.viewMode === b.viewMode &&
-    a.scrollSpeed === b.scrollSpeed
+    a.scrollSpeed === b.scrollSpeed &&
+    JSON.stringify(a.hiddenTabs) === JSON.stringify(b.hiddenTabs) &&
+    a.notes === b.notes
   );
+}
+
+function sectionColorVar(type: SectionType): string {
+  switch (type) {
+    case 'intro': case 'solo': case 'tab': return 'var(--section-intro)';
+    case 'verse': return 'var(--section-verse)';
+    case 'pre-chorus': case 'bridge': return 'var(--section-bridge)';
+    case 'chorus': return 'var(--section-chorus)';
+    default: return 'var(--section-default)';
+  }
 }
 
 export function SongEditor({
@@ -97,11 +113,29 @@ export function SongEditor({
   const songHeaderRef = useRef<HTMLElement>(null);
   const [songHeaderInView, setSongHeaderInView] = useState(true);
 
+  const [hiddenTabIds, setHiddenTabIds] = useState<Set<string>>(() => {
+    const initial = activeVersion?.hidden_tabs ?? [];
+    return new Set(initial);
+  });
+
   const [scrollPlaying, setScrollPlaying] = useState(false);
   const scrollRafRef = useRef<number | null>(null);
   const scrollLastTsRef = useRef(0);
   const scrollAccRef = useRef(0);
   const scrollSpeedRef = useRef(scrollSpeed);
+
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [chordZoom, setChordZoom] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseFloat(localStorage.getItem('chord-zoom') ?? '1');
+  });
+  const [lyricZoom, setLyricZoom] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    return parseFloat(localStorage.getItem('lyric-zoom') ?? '1');
+  });
+  const [stageMode, setStageMode] = useState(false);
+  const [notes, setNotes] = useState(activeVersion?.notes ?? '');
+  const [notesOpen, setNotesOpen] = useState(() => !!(activeVersion?.notes));
 
   useEffect(() => {
     scrollSpeedRef.current = scrollSpeed;
@@ -167,6 +201,43 @@ export function SongEditor({
     return () => obs.disconnect();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('chord-zoom', String(chordZoom));
+  }, [chordZoom]);
+
+  useEffect(() => {
+    localStorage.setItem('lyric-zoom', String(lyricZoom));
+  }, [lyricZoom]);
+
+  useEffect(() => {
+    const els = sections
+      .map((s) => document.getElementById(`section-${s.id}`))
+      .filter(Boolean) as HTMLElement[];
+    if (els.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveSectionId(entry.target.id.replace('section-', ''));
+            break;
+          }
+        }
+      },
+      { rootMargin: '-20% 0px -70% 0px', threshold: 0 }
+    );
+    for (const el of els) obs.observe(el);
+    return () => obs.disconnect();
+  }, [sections]);
+
+  useEffect(() => {
+    if (!stageMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStageMode(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [stageMode]);
+
   const dismissToast = useCallback(() => setToast(null), []);
 
   function pushToast(kind: MiniToastKind, text: string, title?: string) {
@@ -175,18 +246,23 @@ export function SongEditor({
 
   useEffect(() => {
     const nextSections = cloneSections(displaySections ?? song.sections);
+    const nextHiddenTabs = activeVersion?.hidden_tabs ?? [];
     const nextPrefs: PrefsBaseline = activeVersion
       ? {
           transposeSteps: activeVersion.transpose_steps,
           capo: activeVersion.capo,
           viewMode: activeVersion.view_mode,
           scrollSpeed: activeVersion.scroll_speed ?? SCROLL_SPEED_DEFAULT,
+          hiddenTabs: nextHiddenTabs,
+          notes: activeVersion.notes ?? '',
         }
       : {
           transposeSteps: 0,
           capo: 0,
           viewMode: 'default',
           scrollSpeed: SCROLL_SPEED_DEFAULT,
+          hiddenTabs: [],
+          notes: '',
         };
 
     setSections(nextSections);
@@ -194,12 +270,16 @@ export function SongEditor({
     setCapo(nextPrefs.capo);
     setViewMode(nextPrefs.viewMode);
     setScrollSpeed(nextPrefs.scrollSpeed);
+    setHiddenTabIds(new Set(nextHiddenTabs));
+    setNotes(nextPrefs.notes);
+    setNotesOpen(!!nextPrefs.notes);
     setBaseline({
       sectionsStr: sectionsSnapshot(nextSections),
       prefs: nextPrefs,
     });
     setEditMode(false);
     setSaveMenuOpen(false);
+    setStageMode(false);
   }, [variantKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -221,6 +301,35 @@ export function SongEditor({
     }
   }, [saveMenuOpen]);
 
+  const tabSectionIds = useMemo(
+    () => sections.filter((s) => s.type === 'tab').map((s) => s.id),
+    [sections]
+  );
+  const hasTabs = tabSectionIds.length > 0;
+  const allTabsHidden = hasTabs && tabSectionIds.every((id) => hiddenTabIds.has(id));
+
+  const toggleAllTabs = useCallback(() => {
+    setHiddenTabIds((prev) => {
+      if (tabSectionIds.every((id) => prev.has(id))) {
+        const next = new Set(prev);
+        for (const id of tabSectionIds) next.delete(id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const id of tabSectionIds) next.add(id);
+      return next;
+    });
+  }, [tabSectionIds]);
+
+  const toggleTabSection = useCallback((sectionId: string) => {
+    setHiddenTabIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  }, []);
+
   const parsedForFlats = {
     title: song.title,
     artist: song.artist,
@@ -233,6 +342,8 @@ export function SongEditor({
   };
   const useFlats = preferFlats(parsedForFlats as Parameters<typeof preferFlats>[0]);
 
+  const hiddenTabsArr = useMemo(() => [...hiddenTabIds].sort(), [hiddenTabIds]);
+
   const isDirty = useMemo(() => {
     if (!baseline) return false;
     const prefsNow: PrefsBaseline = {
@@ -240,11 +351,13 @@ export function SongEditor({
       capo,
       viewMode,
       scrollSpeed,
+      hiddenTabs: hiddenTabsArr,
+      notes,
     };
     return (
       sectionsSnapshot(sections) !== baseline.sectionsStr || !prefsEqual(prefsNow, baseline.prefs)
     );
-  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, baseline]);
+  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, hiddenTabsArr, notes, baseline]);
 
   const handleUpdateLine = useCallback(
     (sectionId: string, lineId: string, patch: { chords?: ChordToken[]; text?: string }) => {
@@ -285,6 +398,8 @@ export function SongEditor({
       transposeSteps,
       viewMode,
       scrollSpeed,
+      hiddenTabs: hiddenTabsArr,
+      notes,
       overrides,
     };
   }
@@ -297,6 +412,8 @@ export function SongEditor({
         capo,
         viewMode,
         scrollSpeed,
+        hiddenTabs: hiddenTabsArr,
+        notes,
       },
     });
   }
@@ -422,7 +539,13 @@ export function SongEditor({
     'inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-lg backdrop-blur-sm transition-opacity hover:bg-[var(--bg-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]';
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)]">
+    <div className={`min-h-screen bg-[var(--bg-base)] ${stageMode ? 'stage-mode' : ''}`}>
+      <style>{`
+        .song-content .chord-line { font-size: ${chordZoom}rem; }
+        .song-content .lyric-line { font-size: ${lyricZoom}rem; }
+      `}</style>
+
+      {!stageMode && (
       <header
         ref={songHeaderRef}
         className="relative z-10 bg-[var(--bg-base)] border-b border-[var(--border)] px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3"
@@ -469,6 +592,13 @@ export function SongEditor({
             ) : (
               <PanelRightOpen {...lucideInIconButton} />
             )}
+          </IconButton>
+
+          <IconButton
+            label="Modo escenario"
+            onClick={() => { setStageMode(true); if (!scrollPlaying) playAutoScroll(); }}
+          >
+            <Maximize2 {...lucideInIconButton} />
           </IconButton>
 
           <div className="relative ml-1 flex items-center" ref={saveMenuRef}>
@@ -532,6 +662,7 @@ export function SongEditor({
           </div>
         </div>
       </header>
+      )}
 
       {toast && (
         <MiniToast
@@ -542,7 +673,7 @@ export function SongEditor({
         />
       )}
 
-      {showFloatingChrome && (
+      {showFloatingChrome && !stageMode && (
         <div
           className="fixed right-4 top-14 z-[160] flex items-center gap-2"
           aria-label="Acciones rápidas"
@@ -574,29 +705,96 @@ export function SongEditor({
         </div>
       )}
 
+      {stageMode && (
+        <div className="fixed right-4 top-4 z-[160] flex items-center gap-2">
+          <button
+            type="button"
+            className={floatBtnClass}
+            title="Salir de modo escenario"
+            aria-label="Salir de modo escenario"
+            onClick={() => setStageMode(false)}
+          >
+            <Minimize2 size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+          </button>
+          {scrollPlaying && (
+            <button
+              type="button"
+              className={`${floatBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`}
+              title="Pausar scroll"
+              aria-label="Pausar scroll automático"
+              onClick={pauseAutoScroll}
+            >
+              <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+
       {editMode && (
         <p className="mx-4 mt-2 text-xs text-[var(--text-muted)]">
           Editá acordes y letra. Los acordes se confirman al salir del campo (Tab o clic fuera). Usá el ícono de guardar para persistir.
         </p>
       )}
 
+      <nav
+        className={`sticky top-0 z-20 overflow-x-auto border-b border-[var(--border)] bg-[var(--bg-base)]/95 backdrop-blur-sm ${
+          stageMode ? 'opacity-60 hover:opacity-100 transition-opacity' : ''
+        }`}
+      >
+        <div className="flex gap-1.5 px-3 py-1.5">
+          {sections.map((section) => {
+            const color = sectionColorVar(section.type);
+            const isActive = activeSectionId === section.id;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById(`section-${section.id}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+                className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-medium border transition-all ${
+                  isActive ? 'opacity-100 shadow-sm' : 'opacity-50 hover:opacity-80'
+                }`}
+                style={{
+                  color,
+                  borderColor: color,
+                  backgroundColor: isActive
+                    ? `color-mix(in srgb, ${color} 15%, transparent)`
+                    : 'transparent',
+                }}
+              >
+                {section.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       <div className="flex gap-0">
-        <main className="flex-1 min-w-0 px-4 py-6 overflow-x-auto">
+        <main
+          className={`flex-1 min-w-0 overflow-x-auto ${stageMode ? 'px-8 sm:px-16 py-10 text-lg' : 'px-4 py-6'}`}
+          style={{ '--chord-scale': chordZoom, '--lyric-scale': lyricZoom } as React.CSSProperties}
+        >
           {sections.map((section) => (
-            <SectionBlock
-              key={section.id}
-              section={section}
-              chordTransposeSteps={transposeSteps - capo}
-              viewMode={viewMode}
-              useFlats={useFlats}
-              editMode={editMode}
-              editSession={editSession}
-              onUpdateLine={(lineId, patch) => handleUpdateLine(section.id, lineId, patch)}
-            />
+            <div key={section.id} id={`section-${section.id}`}>
+              <SectionBlock
+                section={section}
+                chordTransposeSteps={transposeSteps - capo}
+                viewMode={viewMode}
+                useFlats={useFlats}
+                editMode={editMode}
+                editSession={editSession}
+                tabVisible={section.type === 'tab' ? !hiddenTabIds.has(section.id) : undefined}
+                onToggleTab={section.type === 'tab' ? () => toggleTabSection(section.id) : undefined}
+                onUpdateLine={(lineId, patch) => handleUpdateLine(section.id, lineId, patch)}
+              />
+            </div>
           ))}
         </main>
 
-        {panelOpen && (
+        {panelOpen && !stageMode && (
           <aside className="w-64 shrink-0 p-4 border-l border-[var(--border)] space-y-3 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
             {!editMode && (
               <ScrollControl
@@ -615,7 +813,63 @@ export function SongEditor({
               onTransposeChange={setTransposeSteps}
               onCapoChange={setCapo}
             />
-            {!editMode && <ViewModeSwitch value={viewMode} onChange={setViewMode} />}
+            {!editMode && (
+              <ViewModeSwitch
+                value={viewMode}
+                onChange={setViewMode}
+                hasTabs={hasTabs}
+                allTabsHidden={allTabsHidden}
+                onToggleTabs={toggleAllTabs}
+              />
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                Tamaño
+              </p>
+              <label className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+                Acordes
+                <input
+                  type="range"
+                  min="0.7"
+                  max="2"
+                  step="0.1"
+                  value={chordZoom}
+                  onChange={(e) => setChordZoom(parseFloat(e.target.value))}
+                  className="w-24 accent-[var(--accent)]"
+                />
+                <span className="w-8 text-right font-mono text-[10px]">
+                  {chordZoom.toFixed(1)}
+                </span>
+              </label>
+              <label className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+                Letra
+                <input
+                  type="range"
+                  min="0.7"
+                  max="2"
+                  step="0.1"
+                  value={lyricZoom}
+                  onChange={(e) => setLyricZoom(parseFloat(e.target.value))}
+                  className="w-24 accent-[var(--accent)]"
+                />
+                <span className="w-8 text-right font-mono text-[10px]">
+                  {lyricZoom.toFixed(1)}
+                </span>
+              </label>
+              {(chordZoom !== 1 || lyricZoom !== 1) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChordZoom(1);
+                    setLyricZoom(1);
+                  }}
+                  className="text-[10px] text-[var(--accent)] hover:underline"
+                >
+                  Restablecer tamaño
+                </button>
+              )}
+            </div>
 
             <div className="text-xs text-[var(--text-muted)] space-y-1 pt-2">
               {song.original_key && (
@@ -632,6 +886,32 @@ export function SongEditor({
               >
                 Ver fuente original
               </a>
+            </div>
+
+            <div className="border-t border-[var(--border)] pt-2">
+              <button
+                type="button"
+                onClick={() => setNotesOpen((o) => !o)}
+                className="flex items-center gap-1 w-full text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider hover:text-[var(--text-primary)]"
+              >
+                <ChevronDown
+                  size={12}
+                  strokeWidth={ICON_STROKE}
+                  className={`shrink-0 transition-transform ${notesOpen ? '' : '-rotate-90'}`}
+                  aria-hidden
+                />
+                Notas
+              </button>
+              {notesOpen && (
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Apuntes, ideas, recordatorios…"
+                  rows={3}
+                  className="mt-1.5 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                  style={{ minHeight: '3rem' }}
+                />
+              )}
             </div>
           </aside>
         )}

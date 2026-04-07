@@ -63,22 +63,105 @@ export function extractChordsFromLine(
 }
 
 const ROOT_RE = /^([A-G][#b]?)/;
+const MINOR_RE = /^[A-G][#b]?m(?!aj)/;
 
-/** Detecta el acorde principal de una canción (raíz más frecuente). */
+interface ChordInfo {
+  root: string;
+  isMinor: boolean;
+  full: string;
+}
+
+function parseChordInfo(chord: string): ChordInfo | null {
+  const base = chord.split('/')[0];
+  const m = ROOT_RE.exec(base);
+  if (!m) return null;
+  return { root: m[1], isMinor: MINOR_RE.test(base), full: base };
+}
+
+const SEMITONES: Record<string, number> = {
+  C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3,
+  E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8,
+  A: 9, 'A#': 10, Bb: 10, B: 11,
+};
+
+function semitone(root: string): number {
+  return SEMITONES[root] ?? -1;
+}
+
+/**
+ * Detecta la tonalidad principal usando heurísticas armónicas:
+ *  1. Frecuencia de raíz (peso base)
+ *  2. Bonus por posición: primer acorde de la canción y primer acorde de cada sección
+ *  3. Bonus por cadencia V→I (intervalo de 5ta justa ascendente)
+ *  4. Penalización si la raíz solo aparece como acorde menor pero la key sería mayor
+ */
 export function detectMainKey(chordLines: string[]): string | null {
-  const counts: Record<string, number> = {};
+  const allChords: ChordInfo[] = [];
+  const sectionFirsts: ChordInfo[] = [];
+  let isNewSection = true;
+
   for (const line of chordLines) {
-    const chords = extractChordsFromLine(line);
-    for (const { chord } of chords) {
-      const base = chord.split('/')[0];
-      const m = ROOT_RE.exec(base);
-      if (m) {
-        counts[m[1]] = (counts[m[1]] ?? 0) + 1;
+    const extracted = extractChordsFromLine(line);
+    if (extracted.length === 0) {
+      isNewSection = true;
+      continue;
+    }
+    for (const { chord } of extracted) {
+      const info = parseChordInfo(chord);
+      if (info) {
+        allChords.push(info);
+        if (isNewSection) {
+          sectionFirsts.push(info);
+          isNewSection = false;
+        }
       }
     }
   }
 
-  const entries = Object.entries(counts);
+  if (allChords.length === 0) return null;
+
+  // Frequency score
+  const scores: Record<string, number> = {};
+  for (const c of allChords) {
+    scores[c.root] = (scores[c.root] ?? 0) + 1;
+  }
+
+  // Bonus: first chord of the song
+  const first = allChords[0];
+  scores[first.root] = (scores[first.root] ?? 0) + 3;
+
+  // Bonus: first chord of each section
+  for (const sf of sectionFirsts) {
+    scores[sf.root] = (scores[sf.root] ?? 0) + 2;
+  }
+
+  // Bonus: V→I cadence detection
+  for (let i = 1; i < allChords.length; i++) {
+    const prev = semitone(allChords[i - 1].root);
+    const curr = semitone(allChords[i].root);
+    if (prev >= 0 && curr >= 0) {
+      const interval = ((curr - prev) + 12) % 12;
+      if (interval === 5) {
+        scores[allChords[i].root] = (scores[allChords[i].root] ?? 0) + 2;
+      }
+    }
+  }
+
+  // Penalty: root only ever appears as minor chord → less likely to be a major key
+  const rootAppearances: Record<string, { major: number; minor: number }> = {};
+  for (const c of allChords) {
+    if (!rootAppearances[c.root]) rootAppearances[c.root] = { major: 0, minor: 0 };
+    if (c.isMinor) rootAppearances[c.root].minor++;
+    else rootAppearances[c.root].major++;
+  }
+
+  for (const [root, app] of Object.entries(rootAppearances)) {
+    if (app.major === 0 && app.minor > 0) {
+      scores[root] = (scores[root] ?? 0) * 0.6;
+    }
+  }
+
+  const entries = Object.entries(scores);
   if (entries.length === 0) return null;
   return entries.sort((a, b) => b[1] - a[1])[0][0];
 }

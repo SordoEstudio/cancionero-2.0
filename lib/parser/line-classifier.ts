@@ -1,7 +1,7 @@
 import { isChordLine, extractChordsFromLine } from './chord-detector';
 import type { ParsedLine } from '@/types';
 
-type RawLineType = 'chord' | 'lyric' | 'blank' | 'section-label';
+type RawLineType = 'chord' | 'lyric' | 'blank' | 'section-label' | 'tab';
 
 interface ClassifiedLine {
   type: RawLineType;
@@ -10,14 +10,75 @@ interface ClassifiedLine {
 }
 
 const SECTION_LABEL_REGEX =
-  /^\s*\[?(?:intro|verse|estrofa|verso|coro|chorus|puente|bridge|pre[-\s]?coro|pre[-\s]?chorus|solo|outro|final|interludio|interlude)\]?\s*:?\s*$/i;
+  /^\s*\[?(?:intro|verse|estrofa|verso|coro|chorus|puente|bridge|pre[-\s]?coro|pre[-\s]?chorus|solo|outro|final|interludio|interlude|tab(?:latura)?(?:\s*:\s*[^\]]*)?)\]?\s*:?\s*$/i;
+
+/**
+ * Guitar tablature: a string letter (e/B/G/D/A/E) followed by a long run of
+ * dashes, pipe chars, digits and ornaments. Also matches lines that are >=30%
+ * dashes and at least 20 chars (catches incomplete or unusual TAB formats).
+ */
+export function isTabLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 10) return false;
+  if (/^[eEBGDA]\s*[-|0-9hpb/\\~x()s\s]{8,}$/.test(t)) return true;
+  if (t.length >= 20) {
+    const dashes = t.split('').filter((c) => c === '-').length;
+    if (dashes / t.length > 0.3) return true;
+  }
+  return false;
+}
+
+/**
+ * Lines starting with * are user comments (common in LaCuerda submissions).
+ * Also catches common page/site noise that slips through scrapers.
+ */
+function isNoiseLine(line: string): boolean {
+  const t = line.trim();
+  if (t.startsWith('*')) return true;
+  if (/^https?:\/\//.test(t)) return true;
+  return false;
+}
+
+/**
+ * Prose that introduces or describes the song but isn't lyrics or chords.
+ * Common in LaCuerda pasted content: "Aca va una transcripción de..."
+ */
+function isProseLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 30) return false;
+  const words = t.split(/\s+/).length;
+  if (words < 6) return false;
+  // High ratio of lowercase words with common Spanish prose markers
+  if (/\b(?:transcripci[oó]n|versi[oó]n|aqu[ií]|ac[aá]|esta es|les dejo|escuchen|disco|del album)\b/i.test(t)) return true;
+  return false;
+}
+
+let _inNoiseBlock = false;
 
 function classifyLine(line: string): ClassifiedLine {
-  if (line.trim() === '') return { type: 'blank', raw: line };
+  if (line.trim() === '') {
+    _inNoiseBlock = false;
+    return { type: 'blank', raw: line };
+  }
   if (SECTION_LABEL_REGEX.test(line)) {
+    _inNoiseBlock = false;
     return { type: 'section-label', raw: line, label: line.trim().replace(/[\[\]:]/g, '').trim() };
   }
+  if (isTabLine(line)) {
+    _inNoiseBlock = false;
+    return { type: 'tab', raw: line };
+  }
+  if (isNoiseLine(line)) {
+    _inNoiseBlock = true;
+    return { type: 'blank', raw: line };
+  }
+  // Continuation of a * comment block (lines after * until blank/chord/tab)
+  if (_inNoiseBlock && !isChordLine(line)) {
+    return { type: 'blank', raw: line };
+  }
+  _inNoiseBlock = false;
   if (isChordLine(line)) return { type: 'chord', raw: line };
+  if (isProseLine(line)) return { type: 'blank', raw: line };
   return { type: 'lyric', raw: line };
 }
 
@@ -29,8 +90,9 @@ function classifyLine(line: string): ClassifiedLine {
  *   lyric sola    → ParsedLine con chords=[], text
  */
 export function classifyAndPairLines(rawText: string): ParsedLine[] {
+  _inNoiseBlock = false;
   const rawLines = rawText.split('\n');
-  const classified = rawLines.map(classifyLine);
+  const classified = rawLines.map((l) => classifyLine(l));
   const result: ParsedLine[] = [];
 
   let i = 0;
@@ -38,6 +100,12 @@ export function classifyAndPairLines(rawText: string): ParsedLine[] {
     const current = classified[i];
 
     if (current.type === 'blank' || current.type === 'section-label') {
+      i++;
+      continue;
+    }
+
+    if (current.type === 'tab') {
+      result.push({ chords: [], text: current.raw });
       i++;
       continue;
     }
@@ -75,7 +143,7 @@ export interface RawBlock {
   rawLines: string[];
 }
 
-type SegmentKind = 'instrumental' | 'chord-lyric' | 'lyrics-only';
+type SegmentKind = 'instrumental' | 'chord-lyric' | 'lyrics-only' | 'tab';
 
 interface AtomicSegment {
   lines: string[];
@@ -85,6 +153,9 @@ interface AtomicSegment {
 }
 
 function segmentKind(lines: string[]): SegmentKind {
+  const hasTabs = lines.some((l) => isTabLine(l));
+  if (hasTabs) return 'tab';
+
   const hasChords = lines.some((l) => isChordLine(l));
   const hasLyrics = lines.some((l) => {
     const t = l.trim();
@@ -105,6 +176,7 @@ function segmentKind(lines: string[]): SegmentKind {
  *      o etiqueta de sección de por medio.
  */
 export function splitIntoBlocks(rawText: string): RawBlock[] {
+  _inNoiseBlock = false;
   const allLines = rawText.split('\n');
 
   // ── Phase 1: atomic segments ──────────────────────────────────────────────

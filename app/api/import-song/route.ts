@@ -5,7 +5,10 @@ import { getDemoUserId, isAuthDemoMode } from '@/lib/auth-demo';
 import { scrapeSong } from '@/lib/scraper';
 import { isScrapeError } from '@/lib/scraper/types';
 import { parseSong } from '@/lib/parser';
-import { cleanWithGemini } from '@/lib/ai/gemini-parse';
+import {
+  analyzeWithGemini,
+  geminiResultToParsedSong,
+} from '@/lib/ai/gemini-parse';
 import { ImportSongSchema } from '@/lib/validation/schemas';
 import type { ParsedSong, ParsedSection, ParsedLine } from '@/types';
 
@@ -46,28 +49,36 @@ export async function POST(request: NextRequest) {
     const hintArtist = artist && artist.length > 0 ? artist : '';
     const sourceUrl = `paste://${randomUUID()}`;
 
-    let rawTitle = hintTitle;
-    let rawArtist = hintArtist;
-    let rawContent = text;
-    let detectedKey: string | null = null;
+    let songData: ParsedSong | null = null;
 
+    // Strategy 1: Gemini structured output (preferred — bypasses heuristic parser)
     try {
-      const cleaned = await cleanWithGemini(text, hintTitle, hintArtist);
-      rawTitle = cleaned.title;
-      rawArtist = cleaned.artist;
-      rawContent = cleaned.cleanedContent;
-      detectedKey = cleaned.originalKey;
+      const geminiResult = await analyzeWithGemini(text, hintTitle, hintArtist);
+
+      if (geminiResult.mode === 'structured') {
+        songData = geminiResultToParsedSong(geminiResult.data, sourceUrl);
+        console.log('Gemini structured mode: %d sections', songData.sections.length);
+      } else {
+        // Gemini returned cleaned text — feed it through the heuristic parser
+        const { title: t, artist: a, originalKey, cleanedContent } = geminiResult.data;
+        songData = parseSong(
+          { title: t, artist: a, sourceUrl, rawContent: cleanedContent },
+          { inferChords: false }
+        );
+        if (originalKey && !songData.originalKey) {
+          songData.originalKey = originalKey;
+        }
+      }
     } catch (aiErr) {
-      console.warn('Gemini clean falló, parseando texto crudo:', aiErr);
+      console.warn('Gemini analysis failed, falling back to heuristic parser:', aiErr);
     }
 
-    const songData = parseSong(
-      { title: rawTitle, artist: rawArtist, sourceUrl, rawContent },
-      { inferChords: false }
-    );
-
-    if (detectedKey && !songData.originalKey) {
-      songData.originalKey = detectedKey;
+    // Strategy 2: Heuristic parser fallback (if Gemini failed entirely)
+    if (!songData) {
+      songData = parseSong(
+        { title: hintTitle, artist: hintArtist, sourceUrl, rawContent: text },
+        { inferChords: false }
+      );
     }
 
     if (!parsedSongHasContent(songData)) {

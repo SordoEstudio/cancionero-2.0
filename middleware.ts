@@ -4,11 +4,16 @@ import { isAuthDemoMode } from '@/lib/auth-demo';
 
 const PROTECTED_PATHS = [
   '/song/',
+  '/setlist/',
   '/api/save-version',
   '/api/version/',
   '/api/songs',
   '/api/versions',
   '/api/import-song',
+  '/api/favorites',
+  '/api/tags',
+  '/api/song-tags',
+  '/api/setlists',
 ];
 
 function pathRequiresAuth(pathname: string): boolean {

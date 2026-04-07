@@ -97,13 +97,15 @@ export async function GET(
     transpose_steps: number | null;
     view_mode: string | null;
     scroll_speed: number | null;
+    hidden_tabs: string[] | null;
+    notes: string | null;
   };
 
   let ver: VerRow | null = null;
   let lineRows: { song_line_id: string; chords: unknown; text: string | null }[] | null = null;
 
   const versionSelect =
-    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed';
+    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed, hidden_tabs, notes';
 
   if (isAuthDemoMode()) {
     const demoId = getDemoUserId();
@@ -164,6 +166,8 @@ export async function GET(
     transpose_steps: ver.transpose_steps ?? 0,
     view_mode: viewModeFromDb(ver.view_mode),
     scroll_speed: ver.scroll_speed,
+    hidden_tabs: Array.isArray(ver.hidden_tabs) ? ver.hidden_tabs : [],
+    notes: ver.notes ?? '',
   };
 
   return NextResponse.json({

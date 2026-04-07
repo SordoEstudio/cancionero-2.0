@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 
 -- ─── Enum de tipos de sección ─────────────────────────────────────────────
 create type section_type as enum (
-  'intro', 'verse', 'pre-chorus', 'chorus', 'bridge', 'solo', 'outro', 'unknown'
+  'intro', 'verse', 'pre-chorus', 'chorus', 'bridge', 'solo', 'outro', 'tab', 'unknown'
 );
 
 -- ─── songs ────────────────────────────────────────────────────────────────
@@ -65,6 +65,7 @@ create table song_versions (
   transpose_steps int not null default 0,
   view_mode       text not null default 'default',
   scroll_speed    int,
+  hidden_tabs     jsonb not null default '[]'::jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );

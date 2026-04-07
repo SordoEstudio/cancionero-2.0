@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const lacuerdaOrCifraclubUrl = z
   .string()
-  .url('URL inválida')
+  .url('URL invalida')
   .refine(
     (url) => {
       try {
@@ -25,7 +25,7 @@ export const ImportSongSchema = z.discriminatedUnion('mode', [
     text: z
       .string()
       .trim()
-      .min(1, 'Pegá el texto de la cifra')
+      .min(1, 'Pega el texto de la cifra')
       .max(200_000, 'El texto es demasiado largo'),
     title: z.string().trim().max(200).optional(),
     artist: z.string().trim().max(200).optional(),
@@ -41,7 +41,7 @@ const VIEW_MODE_VALUES = z.enum([
 
 const keySnapshotSchema = z
   .string()
-  .regex(/^[A-G](#|b)?m?$/, 'Tonalidad inválida')
+  .regex(/^[A-G](#|b)?m?$/, 'Tonalidad invalida')
   .nullable();
 
 const versionOverridesSchema = z.array(
@@ -57,29 +57,34 @@ const versionOverridesSchema = z.array(
   })
 );
 
+const hiddenTabsSchema = z.array(z.string().uuid()).default([]);
+const notesSchema = z.string().max(5000).default('');
+
 export const SaveVersionSchema = z.object({
-  songId: z.string().uuid('ID de canción inválido'),
-  name: z.string().min(1, 'El nombre no puede estar vacío').max(100),
-  /** Tono de interpretación (denormalizado para listas); puede ser null sin tonalidad en la canción. */
+  songId: z.string().uuid('ID de cancion invalido'),
+  name: z.string().min(1, 'El nombre no puede estar vacio').max(100),
   key: keySnapshotSchema,
   capo: z.number().int().min(0).max(12),
   transposeSteps: z.number().int().min(-12).max(12).default(0),
   viewMode: VIEW_MODE_VALUES.default('default'),
   scrollSpeed: z.number().int().min(10).max(120).default(40),
+  hiddenTabs: hiddenTabsSchema,
+  notes: notesSchema,
   overrides: versionOverridesSchema,
 });
 
-/** PATCH versión existente (misma fila song_versions + reemplazo de version_lines). */
 export const UpdateVersionSchema = z.object({
-  songId: z.string().uuid('ID de canción inválido'),
+  songId: z.string().uuid('ID de cancion invalido'),
   key: keySnapshotSchema,
   capo: z.number().int().min(0).max(12),
   transposeSteps: z.number().int().min(-12).max(12).default(0),
   viewMode: VIEW_MODE_VALUES.default('default'),
   scrollSpeed: z.number().int().min(10).max(120).default(40),
+  hiddenTabs: hiddenTabsSchema,
+  notes: notesSchema,
   overrides: versionOverridesSchema,
 });
 
 export const GetSongSchema = z.object({
-  id: z.string().uuid('ID de canción inválido'),
+  id: z.string().uuid('ID de cancion invalido'),
 });

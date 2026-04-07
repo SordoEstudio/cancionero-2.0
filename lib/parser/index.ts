@@ -1,6 +1,6 @@
 import { classifyAndPairLines, splitIntoBlocks } from './line-classifier';
 import { inferChordsInSections } from './chord-inference';
-import { detectMainKey } from './chord-detector';
+import { isChordLine, detectMainKey } from './chord-detector';
 import { detectAllSectionTypes } from '@/lib/structure';
 import type { ParsedSong, ParsedSection, SectionType } from '@/types';
 import type { RawSongData } from '@/lib/scraper/types';
@@ -14,13 +14,20 @@ export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
   const { inferChords = true } = opts ?? {};
   const blocks = splitIntoBlocks(raw.rawContent);
 
-  const allChordLines: string[] = [];
+  // Only pass actual chord lines; blank separator between blocks so
+  // detectMainKey can apply section-first bonuses correctly.
+  const keyLines: string[] = [];
   for (const block of blocks) {
+    let added = false;
     for (const line of block.rawLines) {
-      if (line.trim()) allChordLines.push(line);
+      if (isChordLine(line)) {
+        keyLines.push(line);
+        added = true;
+      }
     }
+    if (added) keyLines.push('');
   }
-  const originalKey = detectMainKey(allChordLines);
+  const originalKey = detectMainKey(keyLines);
 
   // Detectar tipos con contexto completo
   const types = detectAllSectionTypes(blocks);
@@ -64,6 +71,7 @@ function formatLabel(type: SectionType | string, num: number): string {
     bridge: 'Puente',
     solo: 'Solo',
     outro: 'Final',
+    tab: 'Tablatura',
     unknown: 'Sección',
   };
   const base = labels[type] ?? 'Sección';

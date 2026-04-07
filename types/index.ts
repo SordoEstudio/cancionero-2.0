@@ -7,12 +7,12 @@ export type SectionType =
   | 'bridge'
   | 'solo'
   | 'outro'
+  | 'tab'
   | 'unknown';
 
 export type ViewMode = 'default' | 'inline' | 'chords-only' | 'lyrics-only';
 
 // ─── Chords ──────────────────────────────────────────────────────────────────
-/** Un acorde con su posición en caracteres dentro de la línea de letra */
 export interface ChordToken {
   position: number;
   chord: string;
@@ -58,6 +58,8 @@ export interface DbSongVersion {
   transpose_steps: number;
   view_mode: ViewMode;
   scroll_speed: number | null;
+  hidden_tabs: string[];
+  notes: string;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +73,8 @@ export interface SongVersionActive {
   transpose_steps: number;
   view_mode: ViewMode;
   scroll_speed: number | null;
+  hidden_tabs: string[];
+  notes: string;
 }
 
 export interface DbVersionLine {
@@ -182,4 +186,36 @@ export interface SongSectionWithLines {
 
 export interface FullSong extends DbSong {
   sections: SongSectionWithLines[];
+}
+
+// ─── Favoritos / Tags / Setlists (Sprint 1+2) ───────────────────────────────
+export interface UserTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface SongWithMeta extends DbSong {
+  is_favorite: boolean;
+  tags: UserTag[];
+}
+
+export interface SetlistItem {
+  id: string;
+  name: string;
+  description: string;
+  is_public: boolean;
+  song_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SetlistSongItem {
+  id: string;
+  song_id: string;
+  position: number;
+  version_id: string | null;
+  song_title: string;
+  song_artist: string;
+  original_key: string | null;
 }

@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     transposeSteps,
     viewMode,
     scrollSpeed,
+    hiddenTabs,
+    notes,
     overrides,
   } = parsed.data;
 
@@ -56,6 +58,8 @@ export async function POST(request: NextRequest) {
         transpose_steps: transposeSteps,
         view_mode: viewMode,
         scroll_speed: scrollSpeed,
+        hidden_tabs: hiddenTabs,
+        notes,
       })
       .select('id')
       .single();
@@ -108,6 +112,8 @@ export async function POST(request: NextRequest) {
       transpose_steps: transposeSteps,
       view_mode: viewMode,
       scroll_speed: scrollSpeed,
+      hidden_tabs: hiddenTabs,
+      notes,
     })
     .select('id')
     .single();
