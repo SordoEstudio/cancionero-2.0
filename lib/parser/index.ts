@@ -20,9 +20,24 @@ interface ParseOptions {
   geminiStructured?: boolean;
 }
 
+/** Elimina caracteres Unicode invisibles que rompen la detección de acordes.
+ *  El problema más común: U+200B (zero-width space) que aparece al pegar desde
+ *  sitios web. isChord("​D") falla porque [A-G] no matchea el char invisible. */
+function sanitizeRawContent(text: string): string {
+  // U+200B zero-width space
+  // U+200C zero-width non-joiner
+  // U+200D zero-width joiner
+  // U+FEFF zero-width no-break space / BOM
+  // U+00AD soft hyphen
+  // U+2060 word joiner
+  // U+180E mongolian vowel separator
+  return text.replace(/[​‌‍﻿­⁠᠎]/g, '');
+}
+
 export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
   const { inferChords = true, geminiStructured = false } = opts ?? {};
-  const blocks = splitIntoBlocks(raw.rawContent);
+  const sanitized = sanitizeRawContent(raw.rawContent);
+  const blocks = splitIntoBlocks(sanitized);
 
   // Only pass actual chord lines; blank separator between blocks so
   // detectMainKey can apply section-first bonuses correctly.
