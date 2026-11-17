@@ -99,6 +99,8 @@ export async function GET(
     scroll_speed: number | null;
     hidden_tabs: string[] | null;
     hidden_sections: string[] | null;
+    hidden_lines: string[] | null;
+    section_type_overrides: Record<string, string> | null;
     notes: string | null;
   };
 
@@ -106,7 +108,7 @@ export async function GET(
   let lineRows: { song_line_id: string; chords: unknown; text: string | null }[] | null = null;
 
   const versionSelect =
-    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed, hidden_tabs, hidden_sections, notes';
+    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed, hidden_tabs, hidden_sections, hidden_lines, section_type_overrides, notes';
 
   if (isAuthDemoMode()) {
     const demoId = getDemoUserId();
@@ -160,9 +162,21 @@ export async function GET(
   const hiddenSectionIds = new Set(
     Array.isArray(ver.hidden_sections) ? ver.hidden_sections : []
   );
-  const displaySections = applyLineOverridesToSections(fullSong.sections, map).filter(
-    (s) => !hiddenSectionIds.has(s.id)
+  const hiddenLineIds = new Set(
+    Array.isArray(ver.hidden_lines) ? ver.hidden_lines : []
   );
+  const sectionTypeOvr: Record<string, string> =
+    ver.section_type_overrides && typeof ver.section_type_overrides === 'object'
+      ? ver.section_type_overrides
+      : {};
+
+  const displaySections = applyLineOverridesToSections(fullSong.sections, map)
+    .filter((s) => !hiddenSectionIds.has(s.id))
+    .map((s) => ({
+      ...s,
+      type: (sectionTypeOvr[s.id] as import('@/types').SectionType | undefined) ?? s.type,
+      lines: s.lines.filter((l) => !hiddenLineIds.has(l.id)),
+    }));
 
   const activeVersion: SongVersionActive = {
     id: ver.id,
@@ -174,6 +188,8 @@ export async function GET(
     scroll_speed: ver.scroll_speed,
     hidden_tabs: Array.isArray(ver.hidden_tabs) ? ver.hidden_tabs : [],
     hidden_sections: Array.isArray(ver.hidden_sections) ? ver.hidden_sections : [],
+    hidden_lines: Array.isArray(ver.hidden_lines) ? ver.hidden_lines : [],
+    section_type_overrides: sectionTypeOvr as Record<string, import('@/types').SectionType>,
     notes: ver.notes ?? '',
   };
 

@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
     scrollSpeed,
     hiddenTabs,
     hiddenSections,
+    hiddenLines,
+    sectionTypeOverrides,
     notes,
     overrides,
   } = parsed.data;
@@ -61,6 +63,8 @@ export async function POST(request: NextRequest) {
         scroll_speed: scrollSpeed,
         hidden_tabs: hiddenTabs,
         hidden_sections: hiddenSections,
+        hidden_lines: hiddenLines,
+        section_type_overrides: sectionTypeOverrides,
         notes,
       })
       .select('id')
@@ -116,6 +120,8 @@ export async function POST(request: NextRequest) {
       scroll_speed: scrollSpeed,
       hidden_tabs: hiddenTabs,
       hidden_sections: hiddenSections,
+      hidden_lines: hiddenLines,
+      section_type_overrides: sectionTypeOverrides,
       notes,
     })
     .select('id')

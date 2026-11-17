@@ -32,7 +32,7 @@ export async function PATCH(
     );
   }
 
-  const { songId, key, capo, transposeSteps, viewMode, scrollSpeed, hiddenTabs, hiddenSections, notes, overrides } =
+  const { songId, key, capo, transposeSteps, viewMode, scrollSpeed, hiddenTabs, hiddenSections, hiddenLines, sectionTypeOverrides, notes, overrides } =
     parsed.data;
 
   async function applyUpdate(client: SupabaseClient, userId: string) {
@@ -58,6 +58,8 @@ export async function PATCH(
         scroll_speed: scrollSpeed,
         hidden_tabs: hiddenTabs,
         hidden_sections: hiddenSections,
+        hidden_lines: hiddenLines,
+        section_type_overrides: sectionTypeOverrides,
         notes,
       })
       .eq('id', versionId);

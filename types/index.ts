@@ -60,6 +60,8 @@ export interface DbSongVersion {
   scroll_speed: number | null;
   hidden_tabs: string[];
   hidden_sections: string[];
+  hidden_lines: string[];
+  section_type_overrides: Record<string, SectionType>;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -76,6 +78,8 @@ export interface SongVersionActive {
   scroll_speed: number | null;
   hidden_tabs: string[];
   hidden_sections: string[];
+  hidden_lines: string[];
+  section_type_overrides: Record<string, SectionType>;
   notes: string;
 }
 

@@ -19,6 +19,8 @@ interface SectionBlockProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onDeleteSection?: () => void;
+  onChangeType?: (type: SectionType) => void;
+  onDeleteLine?: (lineId: string) => void;
   onRenameSection?: (newLabel: string) => void;
   sectionNote?: string;
   onSectionNoteChange?: (note: string) => void;
@@ -55,6 +57,8 @@ export function SectionBlock({
   collapsed = false,
   onToggleCollapse,
   onDeleteSection,
+  onChangeType,
+  onDeleteLine,
   onRenameSection,
   sectionNote,
   onSectionNoteChange,
@@ -143,6 +147,25 @@ export function SectionBlock({
             >
               <Check size={12} strokeWidth={ICON_STROKE} aria-hidden />
             </button>
+          )}
+          {onChangeType && !renaming && (
+            <select
+              value={section.type}
+              onChange={(e) => { onChangeType(e.target.value as SectionType); }}
+              onClick={(e) => e.stopPropagation()}
+              title="Tipo de sección"
+              className="ml-1 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1 py-0 text-[10px] text-[var(--text-secondary)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            >
+              <option value="intro">Intro</option>
+              <option value="verse">Estrofa</option>
+              <option value="pre-chorus">Pre-estribillo</option>
+              <option value="chorus">Estribillo</option>
+              <option value="bridge">Puente</option>
+              <option value="solo">Solo</option>
+              <option value="outro">Outro</option>
+              <option value="tab">Tab</option>
+              <option value="unknown">—</option>
+            </select>
           )}
           {onDeleteSection && !renaming && (
             <button
@@ -233,6 +256,7 @@ export function SectionBlock({
                   key={`${line.id}-${editSession}`}
                   line={line}
                   onChange={(patch) => onUpdateLine(line.id, patch)}
+                  onDelete={onDeleteLine ? () => onDeleteLine(line.id) : undefined}
                 />
               ))
             : section.lines.map((line) => (

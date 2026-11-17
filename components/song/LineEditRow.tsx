@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { ChordToken, SongLineWithId } from '@/types';
 import { extractChordsFromLine } from '@/lib/parser/chord-detector';
 import { remapChordPositions } from '@/lib/parser/chord-carry';
+import { ICON_STROKE } from '@/components/ui/icon-tokens';
 
 /** Reconstruye una “fila de acordes” con espacios para editar como en la cifra impresa */
 export function chordsToRawLine(chords: ChordToken[], textLen: number): string {
@@ -33,9 +35,10 @@ function clampChordPositions(chords: ChordToken[], textLen: number): ChordToken[
 interface LineEditRowProps {
   line: SongLineWithId;
   onChange: (patch: { chords?: ChordToken[]; text?: string }) => void;
+  onDelete?: () => void;
 }
 
-export function LineEditRow({ line, onChange }: LineEditRowProps) {
+export function LineEditRow({ line, onChange, onDelete }: LineEditRowProps) {
   const [chordDraft, setChordDraft] = useState(() =>
     chordsToRawLine(line.chords, line.text.length)
   );
@@ -51,6 +54,18 @@ export function LineEditRow({ line, onChange }: LineEditRowProps) {
 
   return (
     <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-3 space-y-2">
+      {onDelete && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            title="Eliminar segmento"
+            onClick={onDelete}
+            className="p-0.5 rounded text-[var(--text-muted)] hover:text-red-500 transition-colors"
+          >
+            <Trash2 size={13} strokeWidth={ICON_STROKE} aria-hidden />
+          </button>
+        </div>
+      )}
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] block mb-1">
           Acordes

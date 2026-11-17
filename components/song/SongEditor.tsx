@@ -57,6 +57,8 @@ type PrefsBaseline = {
   scrollSpeed: number;
   hiddenTabs: string[];
   hiddenSections: string[];
+  hiddenLines: string[];
+  sectionTypeOverrides: Record<string, SectionType>;
   notes: string;
 };
 
@@ -78,6 +80,8 @@ function prefsEqual(a: PrefsBaseline, b: PrefsBaseline): boolean {
     a.scrollSpeed === b.scrollSpeed &&
     JSON.stringify(a.hiddenTabs) === JSON.stringify(b.hiddenTabs) &&
     JSON.stringify(a.hiddenSections) === JSON.stringify(b.hiddenSections) &&
+    JSON.stringify(a.hiddenLines) === JSON.stringify(b.hiddenLines) &&
+    JSON.stringify(a.sectionTypeOverrides) === JSON.stringify(b.sectionTypeOverrides) &&
     a.notes === b.notes
   );
 }
@@ -180,6 +184,12 @@ export function SongEditor({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [deletedSectionIds, setDeletedSectionIds] = useState<Set<string>>(() =>
     new Set(activeVersion?.hidden_sections ?? [])
+  );
+  const [deletedLineIds, setDeletedLineIds] = useState<Set<string>>(() =>
+    new Set(activeVersion?.hidden_lines ?? [])
+  );
+  const [sectionTypeOverrides, setSectionTypeOverrides] = useState<Record<string, SectionType>>(
+    () => activeVersion?.section_type_overrides ?? {}
   );
   const [sectionNotes, setSectionNotes] = useState<Record<string, string>>({});
   const [copiedChordPattern, setCopiedChordPattern] = useState<ChordToken[][] | null>(null);
@@ -358,6 +368,8 @@ export function SongEditor({
           scrollSpeed: scrollBase,
           hiddenTabs: nextHiddenTabs,
           hiddenSections: activeVersion.hidden_sections ?? [],
+          hiddenLines: activeVersion.hidden_lines ?? [],
+          sectionTypeOverrides: activeVersion.section_type_overrides ?? {},
           notes: activeVersion.notes ?? '',
         }
       : {
@@ -367,6 +379,8 @@ export function SongEditor({
           scrollSpeed: scrollBase,
           hiddenTabs: [],
           hiddenSections: [],
+          hiddenLines: [],
+          sectionTypeOverrides: {},
           notes: '',
         };
 
@@ -386,6 +400,8 @@ export function SongEditor({
     setStageMode(false);
     setCopiedChordPattern(null);
     setDeletedSectionIds(new Set(activeVersion?.hidden_sections ?? []));
+    setDeletedLineIds(new Set(activeVersion?.hidden_lines ?? []));
+    setSectionTypeOverrides(activeVersion?.section_type_overrides ?? {});
 
     const stored = loadSongPrefs(song.id);
     if (stored) {
@@ -448,6 +464,18 @@ export function SongEditor({
     });
   }, []);
 
+  const handleDeleteLine = useCallback((lineId: string) => {
+    setDeletedLineIds((prev) => {
+      const next = new Set(prev);
+      next.add(lineId);
+      return next;
+    });
+  }, []);
+
+  const handleChangeSectionType = useCallback((sectionId: string, type: SectionType) => {
+    setSectionTypeOverrides((prev) => ({ ...prev, [sectionId]: type }));
+  }, []);
+
   const handleRenameSection = useCallback((sectionId: string, newLabel: string) => {
     setSections((prev) =>
       prev.map((s) => (s.id === sectionId ? { ...s, label: newLabel } : s))
@@ -508,6 +536,7 @@ export function SongEditor({
 
   const hiddenTabsArr = useMemo(() => [...hiddenTabIds].sort(), [hiddenTabIds]);
   const deletedSectionsArr = useMemo(() => [...deletedSectionIds].sort(), [deletedSectionIds]);
+  const deletedLinesArr = useMemo(() => [...deletedLineIds].sort(), [deletedLineIds]);
 
   const isDirty = useMemo(() => {
     if (!baseline) return false;
@@ -518,12 +547,14 @@ export function SongEditor({
       scrollSpeed,
       hiddenTabs: hiddenTabsArr,
       hiddenSections: deletedSectionsArr,
+      hiddenLines: deletedLinesArr,
+      sectionTypeOverrides,
       notes,
     };
     return (
       sectionsSnapshot(sections) !== baseline.sectionsStr || !prefsEqual(prefsNow, baseline.prefs)
     );
-  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, hiddenTabsArr, deletedSectionsArr, notes, baseline]);
+  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, hiddenTabsArr, deletedSectionsArr, deletedLinesArr, sectionTypeOverrides, notes, baseline]);
 
   const handleUpdateLine = useCallback(
     (sectionId: string, lineId: string, patch: { chords?: ChordToken[]; text?: string }) => {
@@ -566,6 +597,8 @@ export function SongEditor({
       scrollSpeed,
       hiddenTabs: hiddenTabsArr,
       hiddenSections: deletedSectionsArr,
+      hiddenLines: deletedLinesArr,
+      sectionTypeOverrides,
       notes,
       overrides,
     };
@@ -581,6 +614,8 @@ export function SongEditor({
         scrollSpeed,
         hiddenTabs: hiddenTabsArr,
         hiddenSections: deletedSectionsArr,
+        hiddenLines: deletedLinesArr,
+        sectionTypeOverrides,
         notes,
       },
     });
@@ -1042,30 +1077,41 @@ export function SongEditor({
           className={`flex-1 min-w-0 overflow-x-auto ${stageMode ? 'px-8 sm:px-16 py-10 text-lg' : 'px-4 py-6'}`}
           style={{ '--chord-scale': chordZoom, '--lyric-scale': lyricZoom } as React.CSSProperties}
         >
-          {sections.filter((s) => !deletedSectionIds.has(s.id)).map((section) => (
-            <div key={section.id} id={`section-${section.id}`}>
-              <SectionBlock
-                section={section}
-                chordTransposeSteps={transposeSteps - capo}
-                viewMode={viewMode}
-                useFlats={useFlats}
-                editMode={editMode}
-                editSession={editSession}
-                tabVisible={section.type === 'tab' ? !hiddenTabIds.has(section.id) : undefined}
-                onToggleTab={section.type === 'tab' ? () => toggleTabSection(section.id) : undefined}
-                collapsed={collapsedIds.has(section.id)}
-                onToggleCollapse={() => toggleCollapse(section.id)}
-                onDeleteSection={editMode ? () => handleDeleteSection(section.id) : undefined}
-                onRenameSection={(newLabel) => handleRenameSection(section.id, newLabel)}
-                sectionNote={sectionNotes[section.id] ?? ''}
-                onSectionNoteChange={(note) => handleSectionNoteChange(section.id, note)}
-                onUpdateLine={(lineId, patch) => handleUpdateLine(section.id, lineId, patch)}
-                hasCopiedPattern={copiedChordPattern !== null}
-                onCopyChords={editMode ? () => handleCopySection(section.id) : undefined}
-                onPasteChords={editMode && copiedChordPattern !== null ? () => handlePasteSection(section.id) : undefined}
-              />
-            </div>
-          ))}
+          {sections.filter((s) => !deletedSectionIds.has(s.id)).map((section) => {
+            const displaySection = sectionTypeOverrides[section.id]
+              ? { ...section, type: sectionTypeOverrides[section.id] }
+              : section;
+            const filteredSection = {
+              ...displaySection,
+              lines: displaySection.lines.filter((l) => !deletedLineIds.has(l.id)),
+            };
+            return (
+              <div key={section.id} id={`section-${section.id}`}>
+                <SectionBlock
+                  section={filteredSection}
+                  chordTransposeSteps={transposeSteps - capo}
+                  viewMode={viewMode}
+                  useFlats={useFlats}
+                  editMode={editMode}
+                  editSession={editSession}
+                  tabVisible={filteredSection.type === 'tab' ? !hiddenTabIds.has(section.id) : undefined}
+                  onToggleTab={filteredSection.type === 'tab' ? () => toggleTabSection(section.id) : undefined}
+                  collapsed={collapsedIds.has(section.id)}
+                  onToggleCollapse={() => toggleCollapse(section.id)}
+                  onDeleteSection={editMode ? () => handleDeleteSection(section.id) : undefined}
+                  onChangeType={editMode ? (type) => handleChangeSectionType(section.id, type) : undefined}
+                  onDeleteLine={editMode ? (lineId) => handleDeleteLine(lineId) : undefined}
+                  onRenameSection={(newLabel) => handleRenameSection(section.id, newLabel)}
+                  sectionNote={sectionNotes[section.id] ?? ''}
+                  onSectionNoteChange={(note) => handleSectionNoteChange(section.id, note)}
+                  onUpdateLine={(lineId, patch) => handleUpdateLine(section.id, lineId, patch)}
+                  hasCopiedPattern={copiedChordPattern !== null}
+                  onCopyChords={editMode ? () => handleCopySection(section.id) : undefined}
+                  onPasteChords={editMode && copiedChordPattern !== null ? () => handlePasteSection(section.id) : undefined}
+                />
+              </div>
+            );
+          })}
         </main>
 
         {panelOpen && !stageMode && (
