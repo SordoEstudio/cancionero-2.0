@@ -11,6 +11,8 @@
     "demo:create-user": "node scripts/create-demo-user.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "axios": "^1.7.0",

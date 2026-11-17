@@ -15,11 +15,13 @@
  *   SLASH-PART    /[A-G][#b]?  OR  /[0-9]+  (for things like Eb6/9)  (optional)
  */
 const CHORD_RE =
-  /^[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|\+|Δ)?[0-9#b()addsumajnoMÆ]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?$/;
+  /^[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|º|\+|Δ)?[0-9#b()addsumajnoMÆº°]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?\*?$/;
 
 export function isChord(token: string): boolean {
   const t = token.trim();
   if (t.length === 0 || t.length > 30) return false;
+  // Disminuido con ordinal español (LaCuerda / sitios latinos): G#º, F#º
+  if (/^[A-G][#b]?º$/u.test(t) || /^[A-G][#b]?°$/u.test(t)) return true;
   return CHORD_RE.test(t);
 }
 
@@ -28,13 +30,39 @@ export function isChord(token: string): boolean {
  * Criterio: >=60% de los tokens no vacíos son acordes, línea <=120 chars,
  * y al menos un token es un acorde.
  */
+/** Ignora separadores visuales entre acordes: "C - G#º - Am" */
+function chordLineSignificantTokens(line: string): string[] {
+  return line
+    .trim()
+    .split(/\s+/)
+    .filter((tok) => {
+      if (tok === '-' || tok === '–' || tok === '—') return false;
+      if (/^\([^)]*\)$/.test(tok)) return false; // (x1), (x2)
+      if (tok === '[' || tok === ']') return false;
+      return true;
+    });
+}
+
+/** Quita prefijos tipo Intro:[...] o Inter coral:[ para detectar línea de acordes. */
+function stripChordLineDecorations(line: string): string {
+  let s = line.trim();
+  s = s.replace(/^(?:intro|inter(?:\s*coral)?|final\s*coral|inter)\s*:\s*/i, '');
+  s = s.replace(/^\[/, '');
+  s = s.replace(/\]\s*$/,'');
+  s = s.replace(/\s*\(x\d+\)\s*$/i, '');
+  // "Inter: [Solo cuerdas: C - G#º ...]"
+  s = s.replace(/^(?:solo\s+cuerdas|solo)\s*:\s*/i, '');
+  return s;
+}
+
 export function isChordLine(line: string): boolean {
-  if (line.length > 120) return false;
-  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (line.length > 220) return false;
+  const normalized = stripChordLineDecorations(line);
+  const tokens = chordLineSignificantTokens(normalized);
   if (tokens.length === 0) return false;
   const chordCount = tokens.filter(isChord).length;
   if (chordCount === 0) return false;
-  return chordCount / tokens.length >= 0.6;
+  return chordCount / tokens.length >= 0.55;
 }
 
 /**
@@ -44,7 +72,7 @@ export function isChordLine(line: string): boolean {
  * Luego valida cada match con isChord() para descartar falsos positivos.
  */
 const EXTRACT_RE =
-  /[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|\+|Δ)?[0-9#b()addsumajnoMÆ]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?/g;
+  /[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|º|\+|Δ)?[0-9#b()addsumajnoMÆº°]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?\*?/g;
 
 export function extractChordsFromLine(
   chordLine: string

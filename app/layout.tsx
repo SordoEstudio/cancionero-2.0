@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { UserMenu } from '@/components/auth/UserMenu';
-import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LayoutChrome } from '@/components/layout/LayoutChrome';
 
 export const metadata: Metadata = {
   title: 'Cancionero Pro',
@@ -28,17 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="bg-[var(--bg-base)] text-[var(--text-primary)] antialiased">
-        {/* Barra de navegación global */}
-        <nav className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-2 bg-[var(--bg-base)] border-b border-[var(--border)]">
-          <a href="/" className="font-bold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors truncate min-w-0">
-            🎸 Cancionero Pro
-          </a>
-          <div className="flex shrink-0 items-center gap-1">
-            <UserMenu />
-            <ThemeToggle />
-          </div>
-        </nav>
-        {children}
+        <LayoutChrome>{children}</LayoutChrome>
       </body>
     </html>
   );

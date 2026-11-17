@@ -5,10 +5,13 @@ import { getDemoUserId, isAuthDemoMode } from '@/lib/auth-demo';
 import { scrapeSong } from '@/lib/scraper';
 import { isScrapeError } from '@/lib/scraper/types';
 import { parseSong } from '@/lib/parser';
-import {
-  analyzeWithGemini,
-  geminiResultToParsedSong,
-} from '@/lib/ai/gemini-parse';
+// AI import (fase futura): descomentar para reactivar Gemini en paste mode
+// import {
+//   analyzeWithGemini,
+//   preprocessGeminiSongText,
+//   GeminiApiError,
+//   httpStatusForGeminiError,
+// } from '@/lib/ai/gemini-parse';
 import { ImportSongSchema } from '@/lib/validation/schemas';
 import type { ParsedSong, ParsedSection, ParsedLine } from '@/types';
 
@@ -49,37 +52,12 @@ export async function POST(request: NextRequest) {
     const hintArtist = artist && artist.length > 0 ? artist : '';
     const sourceUrl = `paste://${randomUUID()}`;
 
-    let songData: ParsedSong | null = null;
-
-    // Strategy 1: Gemini structured output (preferred — bypasses heuristic parser)
-    try {
-      const geminiResult = await analyzeWithGemini(text, hintTitle, hintArtist);
-
-      if (geminiResult.mode === 'structured') {
-        songData = geminiResultToParsedSong(geminiResult.data, sourceUrl);
-        console.log('Gemini structured mode: %d sections', songData.sections.length);
-      } else {
-        // Gemini returned cleaned text — feed it through the heuristic parser
-        const { title: t, artist: a, originalKey, cleanedContent } = geminiResult.data;
-        songData = parseSong(
-          { title: t, artist: a, sourceUrl, rawContent: cleanedContent },
-          { inferChords: false }
-        );
-        if (originalKey && !songData.originalKey) {
-          songData.originalKey = originalKey;
-        }
-      }
-    } catch (aiErr) {
-      console.warn('Gemini analysis failed, falling back to heuristic parser:', aiErr);
-    }
-
-    // Strategy 2: Heuristic parser fallback (if Gemini failed entirely)
-    if (!songData) {
-      songData = parseSong(
-        { title: hintTitle, artist: hintArtist, sourceUrl, rawContent: text },
-        { inferChords: false }
-      );
-    }
+    // AI import desactivado — fase futura. Para reactivar: ver imports comentados arriba
+    // y restaurar el bloque analyzeWithGemini + preprocessGeminiSongText.
+    const songData: ParsedSong = parseSong(
+      { title: hintTitle, artist: hintArtist, sourceUrl, rawContent: text },
+      { geminiStructured: false, inferChords: true }
+    );
 
     if (!parsedSongHasContent(songData)) {
       return NextResponse.json(

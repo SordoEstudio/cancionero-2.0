@@ -118,6 +118,13 @@ body {
   width: 6px;
   height: 6px;
 }
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -142,4 +149,19 @@ body {
 .lyric-line {
   color: var(--text-primary);
   min-height: 1.2em;
+}
+
+/* Modo escenario: menos distracción, acordes más legibles a distancia */
+.stage-mode {
+  --text-secondary: color-mix(in srgb, var(--text-primary) 72%, var(--text-muted));
+  --chord-color: var(--accent);
+}
+
+.dark .stage-mode {
+  --text-secondary: color-mix(in srgb, var(--text-primary) 78%, var(--text-muted));
+}
+
+.stage-mode .song-content .chord-line {
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
