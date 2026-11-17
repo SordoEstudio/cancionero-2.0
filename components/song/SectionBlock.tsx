@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronRight, Pencil, Check, EyeOff, StickyNote, Copy, ClipboardPaste } from 'lucide-react';
+import { ChevronRight, Pencil, Check, Trash2, StickyNote, Copy, ClipboardPaste } from 'lucide-react';
 import type { ChordToken, SongSectionWithLines, ViewMode, SectionType } from '@/types';
 import { ChordLine } from './ChordLine';
 import { LineEditRow } from './LineEditRow';
@@ -18,8 +18,7 @@ interface SectionBlockProps {
   onToggleTab?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
-  labelHidden?: boolean;
-  onToggleLabelHidden?: () => void;
+  onDeleteSection?: () => void;
   onRenameSection?: (newLabel: string) => void;
   sectionNote?: string;
   onSectionNoteChange?: (note: string) => void;
@@ -55,8 +54,7 @@ export function SectionBlock({
   onToggleTab,
   collapsed = false,
   onToggleCollapse,
-  labelHidden = false,
-  onToggleLabelHidden,
+  onDeleteSection,
   onRenameSection,
   sectionNote,
   onSectionNoteChange,
@@ -93,7 +91,7 @@ export function SectionBlock({
 
   // Section label bar
   const labelBar = (
-    <div className={`group/label flex items-center gap-1 mb-2 ${labelHidden && !editMode ? 'sr-only' : ''}`}>
+    <div className="group/label flex items-center gap-1 mb-2">
       <button
         type="button"
         onClick={handleToggle}
@@ -146,14 +144,14 @@ export function SectionBlock({
               <Check size={12} strokeWidth={ICON_STROKE} aria-hidden />
             </button>
           )}
-          {onToggleLabelHidden && !renaming && (
+          {onDeleteSection && !renaming && (
             <button
               type="button"
-              title={labelHidden ? 'Mostrar título' : 'Ocultar título'}
-              onClick={(e) => { e.stopPropagation(); onToggleLabelHidden(); }}
-              className={`p-0.5 rounded transition-colors ${labelHidden ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--accent)]'}`}
+              title="Eliminar sección"
+              onClick={(e) => { e.stopPropagation(); onDeleteSection(); }}
+              className="p-0.5 rounded text-[var(--text-muted)] hover:text-red-500 transition-colors"
             >
-              <EyeOff size={12} strokeWidth={ICON_STROKE} aria-hidden />
+              <Trash2 size={12} strokeWidth={ICON_STROKE} aria-hidden />
             </button>
           )}
           {onSectionNoteChange && !renaming && (

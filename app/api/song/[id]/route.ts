@@ -98,6 +98,7 @@ export async function GET(
     view_mode: string | null;
     scroll_speed: number | null;
     hidden_tabs: string[] | null;
+    hidden_sections: string[] | null;
     notes: string | null;
   };
 
@@ -105,7 +106,7 @@ export async function GET(
   let lineRows: { song_line_id: string; chords: unknown; text: string | null }[] | null = null;
 
   const versionSelect =
-    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed, hidden_tabs, notes';
+    'id, name, song_id, key, capo, transpose_steps, view_mode, scroll_speed, hidden_tabs, hidden_sections, notes';
 
   if (isAuthDemoMode()) {
     const demoId = getDemoUserId();
@@ -156,7 +157,12 @@ export async function GET(
     });
   }
 
-  const displaySections = applyLineOverridesToSections(fullSong.sections, map);
+  const hiddenSectionIds = new Set(
+    Array.isArray(ver.hidden_sections) ? ver.hidden_sections : []
+  );
+  const displaySections = applyLineOverridesToSections(fullSong.sections, map).filter(
+    (s) => !hiddenSectionIds.has(s.id)
+  );
 
   const activeVersion: SongVersionActive = {
     id: ver.id,
@@ -167,6 +173,7 @@ export async function GET(
     view_mode: viewModeFromDb(ver.view_mode),
     scroll_speed: ver.scroll_speed,
     hidden_tabs: Array.isArray(ver.hidden_tabs) ? ver.hidden_tabs : [],
+    hidden_sections: Array.isArray(ver.hidden_sections) ? ver.hidden_sections : [],
     notes: ver.notes ?? '',
   };
 

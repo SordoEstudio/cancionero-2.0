@@ -58,6 +58,7 @@ const versionOverridesSchema = z.array(
 );
 
 const hiddenTabsSchema = z.array(z.string().uuid()).default([]);
+const hiddenSectionsSchema = z.array(z.string().uuid()).default([]);
 const notesSchema = z.string().max(5000).default('');
 
 export const SaveVersionSchema = z.object({
@@ -69,6 +70,7 @@ export const SaveVersionSchema = z.object({
   viewMode: VIEW_MODE_VALUES.default('default'),
   scrollSpeed: z.number().int().min(10).max(120).default(40),
   hiddenTabs: hiddenTabsSchema,
+  hiddenSections: hiddenSectionsSchema,
   notes: notesSchema,
   overrides: versionOverridesSchema,
 });
@@ -81,6 +83,7 @@ export const UpdateVersionSchema = z.object({
   viewMode: VIEW_MODE_VALUES.default('default'),
   scrollSpeed: z.number().int().min(10).max(120).default(40),
   hiddenTabs: hiddenTabsSchema,
+  hiddenSections: hiddenSectionsSchema,
   notes: notesSchema,
   overrides: versionOverridesSchema,
 });

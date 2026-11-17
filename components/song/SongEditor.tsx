@@ -56,6 +56,7 @@ type PrefsBaseline = {
   viewMode: ViewMode;
   scrollSpeed: number;
   hiddenTabs: string[];
+  hiddenSections: string[];
   notes: string;
 };
 
@@ -76,6 +77,7 @@ function prefsEqual(a: PrefsBaseline, b: PrefsBaseline): boolean {
     a.viewMode === b.viewMode &&
     a.scrollSpeed === b.scrollSpeed &&
     JSON.stringify(a.hiddenTabs) === JSON.stringify(b.hiddenTabs) &&
+    JSON.stringify(a.hiddenSections) === JSON.stringify(b.hiddenSections) &&
     a.notes === b.notes
   );
 }
@@ -176,7 +178,9 @@ export function SongEditor({
   const [notes, setNotes] = useState(activeVersion?.notes ?? '');
   const [notesOpen, setNotesOpen] = useState(() => !!(activeVersion?.notes));
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [hiddenLabelIds, setHiddenLabelIds] = useState<Set<string>>(new Set());
+  const [deletedSectionIds, setDeletedSectionIds] = useState<Set<string>>(() =>
+    new Set(activeVersion?.hidden_sections ?? [])
+  );
   const [sectionNotes, setSectionNotes] = useState<Record<string, string>>({});
   const [copiedChordPattern, setCopiedChordPattern] = useState<ChordToken[][] | null>(null);
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
@@ -353,6 +357,7 @@ export function SongEditor({
           viewMode: activeVersion.view_mode,
           scrollSpeed: scrollBase,
           hiddenTabs: nextHiddenTabs,
+          hiddenSections: activeVersion.hidden_sections ?? [],
           notes: activeVersion.notes ?? '',
         }
       : {
@@ -361,6 +366,7 @@ export function SongEditor({
           viewMode: 'default',
           scrollSpeed: scrollBase,
           hiddenTabs: [],
+          hiddenSections: [],
           notes: '',
         };
 
@@ -379,6 +385,7 @@ export function SongEditor({
     setEditMode(false);
     setStageMode(false);
     setCopiedChordPattern(null);
+    setDeletedSectionIds(new Set(activeVersion?.hidden_sections ?? []));
 
     const stored = loadSongPrefs(song.id);
     if (stored) {
@@ -433,11 +440,10 @@ export function SongEditor({
     });
   }, []);
 
-  const toggleLabelHidden = useCallback((sectionId: string) => {
-    setHiddenLabelIds((prev) => {
+  const handleDeleteSection = useCallback((sectionId: string) => {
+    setDeletedSectionIds((prev) => {
       const next = new Set(prev);
-      if (next.has(sectionId)) next.delete(sectionId);
-      else next.add(sectionId);
+      next.add(sectionId);
       return next;
     });
   }, []);
@@ -501,6 +507,7 @@ export function SongEditor({
   }, [song.original_key, capo, transposeSteps, useFlats, playingKeyDisplay]);
 
   const hiddenTabsArr = useMemo(() => [...hiddenTabIds].sort(), [hiddenTabIds]);
+  const deletedSectionsArr = useMemo(() => [...deletedSectionIds].sort(), [deletedSectionIds]);
 
   const isDirty = useMemo(() => {
     if (!baseline) return false;
@@ -510,12 +517,13 @@ export function SongEditor({
       viewMode,
       scrollSpeed,
       hiddenTabs: hiddenTabsArr,
+      hiddenSections: deletedSectionsArr,
       notes,
     };
     return (
       sectionsSnapshot(sections) !== baseline.sectionsStr || !prefsEqual(prefsNow, baseline.prefs)
     );
-  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, hiddenTabsArr, notes, baseline]);
+  }, [sections, transposeSteps, capo, viewMode, scrollSpeed, hiddenTabsArr, deletedSectionsArr, notes, baseline]);
 
   const handleUpdateLine = useCallback(
     (sectionId: string, lineId: string, patch: { chords?: ChordToken[]; text?: string }) => {
@@ -557,6 +565,7 @@ export function SongEditor({
       viewMode,
       scrollSpeed,
       hiddenTabs: hiddenTabsArr,
+      hiddenSections: deletedSectionsArr,
       notes,
       overrides,
     };
@@ -571,6 +580,7 @@ export function SongEditor({
         viewMode,
         scrollSpeed,
         hiddenTabs: hiddenTabsArr,
+        hiddenSections: deletedSectionsArr,
         notes,
       },
     });
@@ -1032,7 +1042,7 @@ export function SongEditor({
           className={`flex-1 min-w-0 overflow-x-auto ${stageMode ? 'px-8 sm:px-16 py-10 text-lg' : 'px-4 py-6'}`}
           style={{ '--chord-scale': chordZoom, '--lyric-scale': lyricZoom } as React.CSSProperties}
         >
-          {sections.map((section) => (
+          {sections.filter((s) => !deletedSectionIds.has(s.id)).map((section) => (
             <div key={section.id} id={`section-${section.id}`}>
               <SectionBlock
                 section={section}
@@ -1045,8 +1055,7 @@ export function SongEditor({
                 onToggleTab={section.type === 'tab' ? () => toggleTabSection(section.id) : undefined}
                 collapsed={collapsedIds.has(section.id)}
                 onToggleCollapse={() => toggleCollapse(section.id)}
-                labelHidden={hiddenLabelIds.has(section.id)}
-                onToggleLabelHidden={() => toggleLabelHidden(section.id)}
+                onDeleteSection={editMode ? () => handleDeleteSection(section.id) : undefined}
                 onRenameSection={(newLabel) => handleRenameSection(section.id, newLabel)}
                 sectionNote={sectionNotes[section.id] ?? ''}
                 onSectionNoteChange={(note) => handleSectionNoteChange(section.id, note)}

@@ -59,6 +59,7 @@ export interface DbSongVersion {
   view_mode: ViewMode;
   scroll_speed: number | null;
   hidden_tabs: string[];
+  hidden_sections: string[];
   notes: string;
   created_at: string;
   updated_at: string;
@@ -74,6 +75,7 @@ export interface SongVersionActive {
   view_mode: ViewMode;
   scroll_speed: number | null;
   hidden_tabs: string[];
+  hidden_sections: string[];
   notes: string;
 }
 
