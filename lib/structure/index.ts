@@ -19,14 +19,18 @@ const LABEL_MAP: Record<string, SectionType> = {
   chorus: 'chorus',
   estribillo: 'chorus',
   refrán: 'chorus',
+  refrao: 'chorus',
+  refrão: 'chorus',
   puente: 'bridge',
   bridge: 'bridge',
   solo: 'solo',
+  instrumental: 'solo',
   outro: 'outro',
   final: 'outro',
   fin: 'outro',
   tab: 'tab',
   tablatura: 'tab',
+  seccion: 'verse',
 };
 
 /**
@@ -56,6 +60,41 @@ function isInstrumentalBlock(block: RawBlock): boolean {
     const t = l.trim();
     return t === '' || isChordLine(t);
   });
+}
+
+/**
+ * Tipo de sección solo desde la etiqueta [Intro], [Verso 1], [Coro], etc.
+ * Usado tras salida de Gemini para no pisar con heurísticas de repetición.
+ * Devuelve null si la etiqueta no es reconocible.
+ */
+export function explicitSectionTypeFromLabel(label: string | null): SectionType | null {
+  if (!label) return null;
+  const raw = label.trim();
+  if (!raw) return null;
+  const n = raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+
+  if (/^tab(?:latura)?$/i.test(n) || /^tab\b/i.test(n)) return 'tab';
+  if (/^intro\b/i.test(n)) return 'intro';
+  if (/^pre[-\s]?coro\b/i.test(n)) return 'pre-chorus';
+  if (/^verso\b/i.test(n)) return 'verse';
+  if (/^estrofa\b/i.test(n)) return 'verse';
+  if (/^coro\b/i.test(n)) return 'chorus';
+  if (/^estribillo\b/i.test(n)) return 'chorus';
+  if (/^chorus\b/i.test(n)) return 'chorus';
+  if (/^refr/i.test(n)) return 'chorus';
+  if (/^puente\b/i.test(n)) return 'bridge';
+  if (/^bridge\b/i.test(n)) return 'bridge';
+  if (/^solo\b/i.test(n)) return 'solo';
+  if (/^instrumental\b/i.test(n)) return 'solo';
+  if (/^outro\b/i.test(n)) return 'outro';
+  if (/^final\b/i.test(n)) return 'outro';
+  if (/^fin\b/i.test(n)) return 'outro';
+  if (/^seccion\b/i.test(n)) return 'verse';
+
+  return null;
 }
 
 /**

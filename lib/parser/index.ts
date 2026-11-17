@@ -1,17 +1,27 @@
 import { classifyAndPairLines, splitIntoBlocks } from './line-classifier';
 import { inferChordsInSections } from './chord-inference';
 import { isChordLine, detectMainKey } from './chord-detector';
-import { detectAllSectionTypes } from '@/lib/structure';
+import {
+  detectAllSectionTypes,
+  detectSectionType,
+  explicitSectionTypeFromLabel,
+} from '@/lib/structure';
+import { mergeParentheticalChordsInSections } from './chord-inference';
 import type { ParsedSong, ParsedSection, SectionType } from '@/types';
 import type { RawSongData } from '@/lib/scraper/types';
 
 interface ParseOptions {
   /** Repetir acordes en secciones de solo letra (útil para LaCuerda/CifraClub). Default: true. */
   inferChords?: boolean;
+  /**
+   * Texto ya normalizado por Gemini con [Sección]: respeta etiqueta y tipo explícitos
+   * y evita reclasificar por heurísticas de repetición (verso↔coro).
+   */
+  geminiStructured?: boolean;
 }
 
 export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
-  const { inferChords = true } = opts ?? {};
+  const { inferChords = true, geminiStructured = false } = opts ?? {};
   const blocks = splitIntoBlocks(raw.rawContent);
 
   // Only pass actual chord lines; blank separator between blocks so
@@ -29,8 +39,12 @@ export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
   }
   const originalKey = detectMainKey(keyLines);
 
-  // Detectar tipos con contexto completo
-  const types = detectAllSectionTypes(blocks);
+  const types = geminiStructured
+    ? blocks.map((block, idx) => {
+        const explicit = explicitSectionTypeFromLabel(block.label);
+        return explicit ?? detectSectionType(block, idx, blocks.length, blocks);
+      })
+    : detectAllSectionTypes(blocks);
 
   // Contar cuántas veces aparece cada tipo para decidir si numerar
   const typeCounts: Record<string, number> = {};
@@ -44,14 +58,28 @@ export function parseSong(raw: RawSongData, opts?: ParseOptions): ParsedSong {
     counters[sectionType] = (counters[sectionType] ?? 0) + 1;
     const showNumber = typeCounts[sectionType] > 1;
 
+    const labelFromGemini =
+      geminiStructured && block.label?.trim() ? block.label.trim() : null;
+    const label =
+      labelFromGemini ??
+      block.label ??
+      formatLabel(sectionType, showNumber ? counters[sectionType] : 0);
+
     return {
       type: sectionType,
-      label: block.label ?? formatLabel(sectionType, showNumber ? counters[sectionType] : 0),
+      label,
       lines,
     };
   });
 
-  const sections = inferChords ? inferChordsInSections(sectionsRaw) : sectionsRaw;
+  let sections: ParsedSection[];
+  if (geminiStructured) {
+    sections = inferChords
+      ? inferChordsInSections(sectionsRaw)
+      : mergeParentheticalChordsInSections(sectionsRaw);
+  } else {
+    sections = inferChords ? inferChordsInSections(sectionsRaw) : sectionsRaw;
+  }
 
   return {
     title: raw.title,

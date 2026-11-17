@@ -10,6 +10,7 @@ const PROTECTED_PATHS = [
   '/api/songs',
   '/api/versions',
   '/api/import-song',
+  '/api/gemini-poc',
   '/api/favorites',
   '/api/tags',
   '/api/song-tags',

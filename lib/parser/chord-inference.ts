@@ -52,6 +52,24 @@ function carryStateFromLastChordLine(lines: ParsedLine[]): ChordCarryState | nul
  * - Si no, carry línea a línea como antes.
  * - Luego fusiona acordes entre paréntesis en la letra.
  */
+/**
+ * Solo fusiona acordes entre paréntesis en la letra (sin carry ni repetir sección).
+ * Capa segura tras texto ya alineado por Gemini.
+ */
+export function mergeParentheticalChordsInSections<T extends { lines: ParsedLine[] }>(
+  sections: T[]
+): T[] {
+  return sections.map((sec) => ({
+    ...sec,
+    lines: sec.lines.map((l) =>
+      mergeParentheticalChords({
+        ...l,
+        chords: l.chords.map((c) => ({ ...c })),
+      })
+    ),
+  }));
+}
+
 export function inferChordsInSections<T extends { lines: ParsedLine[] }>(
   sections: T[]
 ): T[] {

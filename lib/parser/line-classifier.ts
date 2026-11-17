@@ -1,4 +1,4 @@
-import { isChordLine, extractChordsFromLine } from './chord-detector';
+import { isChord, isChordLine, extractChordsFromLine } from './chord-detector';
 import type { ParsedLine } from '@/types';
 
 type RawLineType = 'chord' | 'lyric' | 'blank' | 'section-label' | 'tab';
@@ -10,7 +10,7 @@ interface ClassifiedLine {
 }
 
 const SECTION_LABEL_REGEX =
-  /^\s*\[?(?:intro|verse|estrofa|verso|coro|chorus|puente|bridge|pre[-\s]?coro|pre[-\s]?chorus|solo|outro|final|interludio|interlude|tab(?:latura)?(?:\s*:\s*[^\]]*)?)\]?\s*:?\s*$/i;
+  /^\s*\[?(?:intro|verse|estrofa|verso(?:\s+\d+)?|coro(?:\s+\d+)?|chorus(?:\s+\d+)?|puente|bridge|pre[-\s]?coro(?:\s+\d+)?|pre[-\s]?chorus(?:\s+\d+)?|solo|outro|final(?:\s+coral)?|interludio|interlude|inter(?:\s*coral)?|instrumental|tab(?:latura)?(?:\s*:\s*[^\]]*)?|secci[oó]n\s*\d+)\]?\s*:?\s*$/i;
 
 /**
  * Guitar tablature: a string letter (e/B/G/D/A/E) followed by a long run of
@@ -53,6 +53,69 @@ function isProseLine(line: string): boolean {
   return false;
 }
 
+/** Comentarios del autor al pegar desde foros / LaCuerda (no son letra). */
+function isUserMetaCommentLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length === 0) return false;
+  if (/^este tema\b/i.test(t)) return true;
+  if (/^anoten\b/i.test(t)) return true;
+  if (/t[ií]tul\w*\s+en\s+portugu/i.test(t)) return true;
+  if (/^bueno,\s+ojalá/i.test(t)) return true;
+  if (/^la letra la saqué/i.test(t)) return true;
+  if (/^y salif keita\b/i.test(t)) return true;
+  if (/^paz y gracias/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * Leyenda de digitación: "C: x32010", "Em* : x2200x", "Em(add9) : 075055",
+ * "Gb7(#11) : 2x231x", "Am6(9) : 5x4500"
+ */
+function isChordDiagramLegendLine(line: string): boolean {
+  const t = line.trim();
+  if (/^ACORDES\s*:?\s*$/i.test(t)) return true;
+  if (
+    /^[A-G][#b]?(?:m|º|°|maj7?|dim|sus\d?|add\d?)?(?:\/[A-G][#b]?)?\s*:\s*x?\d[\dx]{3,}\s*$/i.test(t)
+  )
+    return true;
+
+  const m = t.match(/^(.+?)\s*:\s*([0-9xo]+)\s*$/i);
+  if (!m) return false;
+  const left = m[1].replace(/\s+/g, ' ').trim();
+  const right = m[2].trim();
+  if (right.length < 3 || !/^[0-9xo]+$/i.test(right)) return false;
+  if (!/^[A-G][#b]?/i.test(left)) return false;
+  if (left.length > 44) return false;
+  if (/\b(de|la|el|los|las|que|por|con|una|cuando|donde)\b/i.test(left)) return false;
+  return true;
+}
+
+/** CifraClub: línea solo [Primera Parte], [Estribillo], [Pre-Estribillo]… */
+const BRACKET_STRUCT_INNER =
+  /^(?:(?:primera|segunda|tercera|cuarta|quinta|sexta)\s+parte|(?:pre[-\s]*)?estribillo|estribillo\s*\d*|pre[-\s]*estribillo|corte(?:\s+\d+)?|interludio|m[uú]sica)$/i;
+
+function normalizeBracketInner(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+function isBracketStructuralMarkerLine(line: string): boolean {
+  const t = line.trim();
+  const m = t.match(/^\[(.+)\]\s*$/);
+  if (!m) return false;
+  const innerRaw = m[1].trim();
+  if (/^tab\b/i.test(innerRaw)) return false;
+
+  const compact = innerRaw.replace(/\s/g, '');
+  if (compact.length <= 16 && isChord(compact)) return false;
+
+  const innerNorm = normalizeBracketInner(innerRaw);
+  return BRACKET_STRUCT_INNER.test(innerNorm);
+}
+
 let _inNoiseBlock = false;
 
 function classifyLine(line: string): ClassifiedLine {
@@ -77,6 +140,9 @@ function classifyLine(line: string): ClassifiedLine {
     return { type: 'blank', raw: line };
   }
   _inNoiseBlock = false;
+  if (isUserMetaCommentLine(line)) return { type: 'blank', raw: line };
+  if (isBracketStructuralMarkerLine(line)) return { type: 'blank', raw: line };
+  if (isChordDiagramLegendLine(line)) return { type: 'blank', raw: line };
   if (isChordLine(line)) return { type: 'chord', raw: line };
   if (isProseLine(line)) return { type: 'blank', raw: line };
   return { type: 'lyric', raw: line };

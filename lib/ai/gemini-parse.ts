@@ -1,333 +1,242 @@
 /**
- * Gemini como analizador estructural completo: toma texto crudo pegado por el
- * usuario y devuelve la canción completamente estructurada con secciones
- * tipadas, acordes posicionados, tablaturas preservadas y metadata.
- *
- * Dos modos de salida:
- *   - cleanedContent: texto con etiquetas [Verso], [Coro]... (fallback para parser)
- *   - sections: array estructurado de secciones (preferido, bypasea el parser)
+ * Gemini: parser determinista en texto ([secciones], acordes sobre letra, [TAB]…[/TAB]).
+ * `parseSong` convierte ese texto en ParsedSong.
  */
-
-import type { ParsedSong, ParsedSection, ParsedLine, SectionType } from '@/types';
-import { extractChordsFromLine, isChordLine } from '@/lib/parser/chord-detector';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
+/** Error HTTP de la API de Google Generative Language (clave, permisos, cuota, etc.). */
+export class GeminiApiError extends Error {
+  constructor(
+    message: string,
+    public readonly httpStatus: number,
+    public readonly details: unknown
+  ) {
+    super(message);
+    this.name = 'GeminiApiError';
+  }
+}
+
+function parseGoogleApiErrorBody(bodyText: string): { message: string; parsed: unknown } {
+  const trimmed = bodyText.trim();
+  try {
+    const parsed = JSON.parse(trimmed) as {
+      error?: { message?: string; status?: string; code?: number };
+    };
+    const msg = parsed?.error?.message;
+    if (typeof msg === 'string' && msg.length > 0) {
+      return { message: msg, parsed };
+    }
+  } catch {
+    /* ignore */
+  }
+  return {
+    message: trimmed.length > 0 ? trimmed.slice(0, 800) : 'Sin cuerpo de error',
+    parsed: trimmed,
+  };
+}
+
+/** Código HTTP a devolver al cliente (evita 503 genérico cuando Google dice 403/429…). */
+export function httpStatusForGeminiError(httpStatus: number): number {
+  if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) return httpStatus;
+  if (httpStatus >= 400 && httpStatus < 500) return httpStatus;
+  return 502;
+}
+
+function geminiDebugEnabled(): boolean {
+  const v = process.env.GEMINI_DEBUG?.toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+function logGeminiApiMeta(data: unknown): void {
+  if (!geminiDebugEnabled()) return;
+  const d = data as {
+    candidates?: Array<{ finishReason?: string; safetyRatings?: unknown }>;
+    usageMetadata?: unknown;
+    promptFeedback?: unknown;
+  };
+  const c0 = d?.candidates?.[0];
+  // eslint-disable-next-line no-console
+  console.log('[Gemini debug] API meta:', {
+    finishReason: c0?.finishReason,
+    usageMetadata: d?.usageMetadata,
+    promptFeedback: d?.promptFeedback,
+  });
+}
+
+function logGeminiTextOutput(text: string, inputChars: number): void {
+  if (!geminiDebugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.log('[Gemini debug] salida texto (chars):', text.length, '| input:', inputChars);
+  // eslint-disable-next-line no-console
+  console.log('[Gemini debug] preview:\n', text.slice(0, 1200) + (text.length > 1200 ? '\n…' : ''));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SYSTEM PROMPT
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Sos un experto en cifrado musical, análisis armónico y estructura de canciones.
-Tu tarea es tomar texto crudo pegado por un usuario (copiado de sitios como LaCuerda, CifraClub, o escrito a mano) y devolver la canción COMPLETAMENTE ESTRUCTURADA.
+const SYSTEM_PROMPT = `Actúa como un parser determinista de canciones con acordes.
 
-═══════════════ RUIDO A ELIMINAR ═══════════════
+OBJETIVO
+Convertir texto de canciones en formato limpio manteniendo:
 
-ELIMINÁ estas líneas por completo:
-- Cabeceras de sitios web: puntuaciones, menús, links, "Mostrar/Ocultar", "Desfile Automático", "Diagramas de Acordes", "Cambio de Tono", "Cifrado Inglés/Latino", "Formato del Texto"
-- Metadata de sitio: "enviado por X", "corregir", "desconocido", códigos como "spin0021"
-- Comentarios del usuario: líneas con *, dedicatorias, opiniones ("Bueno así es creo yo..."), explicaciones ("escuchar la canción", "correcciones bienvenidas", "es mi versión")
-- Instrucciones de ejecución: "rasgueo: abajo-arriba", "usar cejilla en traste 2", "suena mejor con capo 2"
-- Repeticiones abreviadas: "x2", "repite coro", "igual que verso 1"
-- Frases introductorias: "Aca va una transcripción de...", "Esta es mi versión de...", "Les dejo los acordes de..."
-- Emojis, URLs, spam, firmas
-- Cualquier texto que NO sea letra de la canción, acordes, etiquetas de sección, o tablatura
+- estructura musical
+- acordes alineados con la letra
+- repetición correcta de progresiones
+- eliminación de texto no musical
 
-═══════════════ TABLATURAS ═══════════════
+PRINCIPIO CLAVE
+Si una sección tiene letra sin acordes, asumir que utiliza la progresión armónica más reciente compatible.
 
-Las tablaturas ASCII son contenido musical VALIOSO. Preservalas EXACTAMENTE.
-Detección: líneas tipo e|---0---, B|---1---, o patrones de guiones con números en 6 cuerdas (e/B/G/D/A/E).
-Marcalas como secciones separadas de tipo "tab".
+DEFINICIONES
 
-═══════════════ DETECCIÓN DE ESTRUCTURA ═══════════════
+ACORDE válido:
+A–G con modificadores opcionales:
 
-Analizá la FORMA MUSICAL usando estas reglas:
+#
+b
+m
+maj
+dim
+aug
+sus
+add
+2 4 5 6 7 9 11 13
 
-TIPOS DE SECCIÓN:
-- intro: solo acordes al inicio (sin letra), o tablatura introductoria
-- verse: presenta la narrativa, progresión armónica base, letra cambia entre repeticiones
-- prechorus: sección corta que conecta verso con coro, armonía de transición
-- chorus: se repite con misma melodía/armonía, generalmente la parte más memorable
-- bridge: armonía DIFERENTE a verso y coro, aparece generalmente una sola vez
-- solo: sección instrumental en medio de la canción (no intro ni outro)
-- outro: cierre de la canción, puede ser instrumental o con letra
-- tab: tablatura ASCII
+ej:
+C
+Am
+F#
+G#m7
+Bb
+Amaj7
+D#dim
+C/G
 
-REGLAS DE DETECCIÓN:
-1. Si dos bloques tienen la MISMA progresión armónica pero DIFERENTE letra → son el mismo tipo (ambos "verse" o ambos "chorus")
-2. Si un bloque se repite con MISMA letra Y MISMOS acordes → "chorus" (el coro se repite idéntico)
-3. El segundo bloque armónico distinto después del verso suele ser "chorus" (patrón verso→coro)
-4. Un bloque con armonía que no aparece en versos ni coros → "bridge"
-5. Líneas solo de acordes al inicio → "intro"
-6. Líneas solo de acordes al final → "outro"
-7. Si una sección aparece sin acordes pero con letra que rima/sigue el patrón → repetición del tipo anterior
+SECCIONES válidas:
 
-SECCIONES PEGADAS SIN SEPARACIÓN (MUY IMPORTANTE):
-Muchos textos de canciones NO tienen líneas en blanco entre secciones. Detectá los cambios de sección DENTRO de un bloque continuo usando estos criterios:
-- CAMBIO DE PROGRESIÓN ARMÓNICA: si ya estableciste que el verso usa (ej: E F#m C#m D#dim B) y el coro usa (ej: C#m G#m B), cuando dentro de un bloque continuo la progresión cambia de una a otra → CORTÁ ahí y creá una sección nueva.
-- PATRÓN ARMÓNICO RECONOCIDO: si una línea de acordes coincide con una progresión ya vista en verso o coro anterior → esa línea inicia una repetición de esa sección.
-- No dependas de líneas en blanco para separar secciones. Las líneas en blanco son una PISTA, pero NO un requisito. La armonía es la guía principal.
+[Intro]
+[Verso]
+[Coro]
+[Puente]
+[Solo]
+[Instrumental]
+[Outro]
 
-REPETICIONES IMPLÍCITAS:
-Si hay letra sin acordes que repite la estructura de un verso/coro anterior, DEDUCÍ los acordes y ESCRIBÍ la sección completa. Nunca dejes secciones sin acordes si ya sabés cuáles son.
+normalizar:
 
-═══════════════ ACORDES ═══════════════
+Estribillo → Coro
+Refrão → Coro
 
-Notación anglosajona: C, C#, Db, Dm, G7, Bbm, Cmaj7, D(add9), Asus4, Bm7b5, C#m/D#, etc.
-Preservá la notación ORIGINAL de los acordes del input.
-Si hay acordes inline como "[Am]hola [F]mundo" o "(Am)hola (F)mundo", convertí al formato estándar (línea de acordes arriba, línea de letra abajo).
+REGLAS DE PARSEO
 
-EDGE CASES de acordes:
-- Slash chords: C/G, D/F#, A/E → preservar tal cual
-- Acordes con paréntesis: G (C) G → tratar como progresión G C G
-- Acordes repetidos sin letra entre bloques → sección instrumental
-- Acordes al final de una línea de letra → mover a la línea de acordes arriba
+1. detectar progresiones iniciales
 
-═══════════════ TONALIDAD ═══════════════
+ej:
+Intro: D-A-G-D x2
 
-Analizá las funciones armónicas:
-- I, IV, V, vi son las funciones más comunes en música popular
-- Cadencia V→I confirma la tonalidad
-- El acorde de resolución (donde "descansa" la frase) suele ser el I
-- NO uses solo frecuencia de aparición
-- Si la canción usa mayormente acordes menores con resolución en menor → tonalidad menor (ej: Am, Em)
+→ guardar progresión base:
+D A G D
 
-═══════════════ FORMATO DE SALIDA ═══════════════
+2. asignación de acordes
 
-Respondé ÚNICAMENTE con JSON válido:
+si una línea de acordes está encima de una línea de letra:
+asignar normalmente
 
-{
-  "title": "título detectado o vacío si no se detecta",
-  "artist": "artista detectado o vacío",
-  "originalKey": "tonalidad (ej: E, Am, Bb) o null",
-  "capo": number o null si se menciona,
-  "sections": [
-    {
-      "type": "verse|chorus|bridge|intro|outro|solo|prechorus|tab",
-      "label": "Verso 1|Coro|Puente|Tab: Intro|etc.",
-      "lines": [
-        {
-          "chords": "C#m       G#m    B          C#m",
-          "lyrics": "bajan, el día es vidrio sin sol"
-        }
-      ],
-      "tablature": "e|---0---\\nB|---1---" (solo para type=tab, null para otros)
-    }
-  ]
-}
+ej:
 
-REGLAS del JSON:
-- "lines": cada objeto tiene "chords" (string con acordes posicionados, puede ser "" si no hay) y "lyrics" (string, puede ser "" para líneas instrumentales)
-- Para tablaturas: usá "tablature" (string con \\n entre cuerdas) y lines=[]
-- "label": etiqueta descriptiva en español. Numerar si se repite el tipo: "Verso 1", "Verso 2", "Coro", "Coro"
-- Secciones separadas incluso si no hay etiqueta explícita en el input — TU tarea es inferir la estructura
+D A
+texto
 
-══════════════════ EJEMPLOS ══════════════════
+3. herencia armónica
 
-EJEMPLO — Canción con tablatura, ruido y repetición implícita:
+si aparece letra sin acordes:
 
-INPUT:
-8.17/10 (95)Luis Alberto Spinetta  corregir
-Enviado por Imanol
-Mostrar/Ocultar Menú
-Aca va una transcripción de Bajan del disco Artaud con la intro:
+usar progresión previa si:
 
- e----0---0-------0---0-------0---0-------0---0--------
- B-----0-2---------0-2---------0-2---------0-2---------
- G------1-----------1-----------1-----------1----------
- D-----------------------------------------------------
- A-----------------------------------------------------
- E-0---------3-0---------3-0---------3-0---------3-0---
+- el texto indica repetición
+- la estructura coincide con un verso previo
+- aparece texto tipo:
 
- E            F#m
-  Tengo tiempo   para saber
-C#m           D#dim    B
-   si lo que sueño concluye en algo
+repite lo mismo
+mismos acordes
+igual que arriba
+bis
+x2
+repite estrofa
 
-C#m       G#m    B          C#m
-bajan, el día es vidrio sin sol
+4. comentarios no musicales
 
-Viejo roble del camino,
-tus hojas siempre se agitan algo
-bajan, el día se sienta a morir
+eliminar líneas que contengan:
 
-*Bueno así es creo yo
+tono:
+capo:
+repite:
+notas:
+acordes:
+intro x2
+explicaciones en prosa
 
-OUTPUT:
-{
-  "title": "Bajan",
-  "artist": "Luis Alberto Spinetta",
-  "originalKey": "E",
-  "capo": null,
-  "sections": [
-    {
-      "type": "tab",
-      "label": "Tab: Intro",
-      "lines": [],
-      "tablature": " e----0---0-------0---0-------0---0-------0---0--------\\n B-----0-2---------0-2---------0-2---------0-2---------\\n G------1-----------1-----------1-----------1----------\\n D-----------------------------------------------------\\n A-----------------------------------------------------\\n E-0---------3-0---------3-0---------3-0---------3-0---"
-    },
-    {
-      "type": "verse",
-      "label": "Verso 1",
-      "lines": [
-        {"chords": " E            F#m", "lyrics": "  Tengo tiempo   para saber"},
-        {"chords": "C#m           D#dim    B", "lyrics": "   si lo que sueño concluye en algo"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "chorus",
-      "label": "Coro",
-      "lines": [
-        {"chords": "C#m       G#m    B          C#m", "lyrics": "bajan, el día es vidrio sin sol"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "verse",
-      "label": "Verso 2",
-      "lines": [
-        {"chords": " E            F#m", "lyrics": "Viejo roble del camino,"},
-        {"chords": "C#m           D#dim    B", "lyrics": "tus hojas siempre se agitan algo"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "chorus",
-      "label": "Coro",
-      "lines": [
-        {"chords": "C#m       G#m    B          C#m", "lyrics": "bajan, el día se sienta a morir"}
-      ],
-      "tablature": null
-    }
-  ]
-}
+ej:
+"Repite lo mismo en el estribillo y cambia algunas notas"
 
-Notas: el ruido (rating, "Enviado por", "Mostrar/Ocultar", intro del usuario, comentario *) fue eliminado. La tablatura se preservó. El verso 2 sin acordes dedujo los del verso 1. El coro se repite con diferente letra pero mismos acordes. Tonalidad E (I=E, ii=F#m, V=B, vi=C#m).
+5. numeración de secciones
 
-EJEMPLO 2 — Letra sin acordes, repetición implícita y verso+coro pegados:
+no inventar números de sección
 
-INPUT:
- E            F#m
-  Tengo tiempo   para saber
+usar:
 
-C#m           D#dim    B
-   si lo que sueño concluye en algo
+[Verso]
+[Coro]
 
-E            F#m
- No te apures   ya más loco
+solo numerar si el input lo indica explícitamente
 
-C#m             D#dim     B
-   porque es entonces cuando las horas
+6. consistencia de progresión
 
+si un verso inicial tiene estructura:
 
-C#m       G#m    B          C#m
-bajan, el día es vidrio sin sol
+D A
+G D
 
-          G#m         B Cm    C#m
-Bajan, la noche te ocul-ta la voz
+los versos siguientes deben mantener ese patrón
+aunque no aparezcan acordes explícitos
 
-     C   C   Am7 G#7 F#m7
-Y además vos que-rés Sol
+7. líneas sueltas de acordes
 
-    C#m        D#m                 C#m - C#m/D# - C#m/E - Amaj7
-Despacio también podés hallar la luna
+si aparecen acordes aislados:
 
+D
 
-Viejo roble del camino,
-tus hojas siempre se agitan algo
-Nena, nena, que bien te ves
-Cuando en tus ojos no importa si las horas
-bajan, el día se sienta a morir
-Bajan, la noche se nubla sin fin
-Y además vos sos el Sol
-Despacio también podes ser la luna.
+interpretar como cierre de sección
 
-OUTPUT:
-{
-  "title": "Bajan",
-  "artist": "Luis Alberto Spinetta",
-  "originalKey": "E",
-  "capo": null,
-  "sections": [
-    {
-      "type": "verse",
-      "label": "Verso 1",
-      "lines": [
-        {"chords": " E            F#m", "lyrics": "  Tengo tiempo   para saber"},
-        {"chords": "C#m           D#dim    B", "lyrics": "   si lo que sueño concluye en algo"},
-        {"chords": "E            F#m", "lyrics": " No te apures   ya más loco"},
-        {"chords": "C#m             D#dim     B", "lyrics": "   porque es entonces cuando las horas"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "chorus",
-      "label": "Coro",
-      "lines": [
-        {"chords": "C#m       G#m    B          C#m", "lyrics": "bajan, el día es vidrio sin sol"},
-        {"chords": "          G#m         B Cm    C#m", "lyrics": "Bajan, la noche te ocul-ta la voz"},
-        {"chords": "     C   C   Am7 G#7 F#m7", "lyrics": "Y además vos que-rés Sol"},
-        {"chords": "    C#m        D#m                 C#m   C#m/D#   C#m/E   Amaj7", "lyrics": "Despacio también podés hallar la luna"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "verse",
-      "label": "Verso 2",
-      "lines": [
-        {"chords": " E            F#m", "lyrics": "Viejo roble del camino,"},
-        {"chords": "C#m           D#dim    B", "lyrics": "tus hojas siempre se agitan algo"},
-        {"chords": "E            F#m", "lyrics": "Nena, nena, que bien te ves"},
-        {"chords": "C#m             D#dim     B", "lyrics": "Cuando en tus ojos no importa si las horas"}
-      ],
-      "tablature": null
-    },
-    {
-      "type": "chorus",
-      "label": "Coro",
-      "lines": [
-        {"chords": "C#m       G#m    B          C#m", "lyrics": "bajan, el día se sienta a morir"},
-        {"chords": "          G#m         B Cm    C#m", "lyrics": "Bajan, la noche se nubla sin fin"},
-        {"chords": "     C   C   Am7 G#7 F#m7", "lyrics": "Y además vos sos el Sol"},
-        {"chords": "    C#m        D#m                 C#m   C#m/D#   C#m/E   Amaj7", "lyrics": "Despacio también podes ser la luna."}
-      ],
-      "tablature": null
-    }
-  ]
-}
+8. formato de salida
 
-Notas sobre este ejemplo CRÍTICO — tres patrones combinados:
-1. PARES ACORDE-LETRA SEPARADOS POR BLANK LINES: El verso 1 y coro tienen líneas en blanco entre cada par acorde+letra. Las blank lines NO significan cambio de sección — solo separan pares. La sección cambia cuando la PROGRESIÓN ARMÓNICA cambia.
-2. SEPARACIÓN VERSO→CORO POR ARMONÍA: el verso usa E, F#m, C#m, D#dim, B. El coro usa C#m, G#m, B, Cm, C, Am7, G#7, F#m7, D#m. El corte se hace donde cambia la progresión armónica.
-3. BLOQUE DE PURA LETRA SIN ACORDES (el desafío principal):
-   - "Viejo roble del camino..." hasta "Despacio también podes ser la luna." es TODO texto sin acordes.
-   - PERO contiene tanto el Verso 2 como el Coro 2 pegados.
-   - ¿Cómo sabemos dónde cortar? Por la ESTRUCTURA PARALELA con las secciones anteriores:
-     * Las primeras 4 líneas ("Viejo roble...hasta...las horas") siguen el patrón narrativo del verso 1 → son Verso 2
-     * Las últimas 4 líneas ("bajan...hasta...la luna") repiten el patrón del coro ("bajan" = palabra clave del estribillo, "Y además vos" = frase recurrente) → son Coro 2
-   - Los ACORDES se deducen de las secciones equivalentes anteriores (Verso 1 → Verso 2, Coro 1 → Coro 2)
-4. ACORDES CON GUIONES: "C#m - C#m/D# - C#m/E - Amaj7" → los guiones son separadores visuales, preservar solo los acordes: "C#m   C#m/D#   C#m/E   Amaj7"`;
+[Intro]
+D A G D
+D A G D
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types & converter
-// ─────────────────────────────────────────────────────────────────────────────
+[Verso]
+D A
+letra
+G D
+letra
 
-interface GeminiSection {
-  type: string;
-  label: string;
-  lines: { chords: string; lyrics: string }[];
-  tablature: string | null;
-}
+[Coro]
+D A
+letra
+G D
+letra
 
-interface GeminiStructuredResult {
-  title: string;
-  artist: string;
-  originalKey: string | null;
-  capo: number | null;
-  sections: GeminiSection[];
-}
+9. no agregar acordes nuevos no presentes en el input
+
+10. no agregar explicaciones
+
+OUTPUT SOLO canción formateada
+
+Tablaturas ASCII (líneas e| B| G| con guiones y números): conservarlas tal cual entre líneas [TAB] y [/TAB], sin tratarlas como letra.`;
 
 export interface GeminiCleanResult {
   title: string;
@@ -336,112 +245,47 @@ export interface GeminiCleanResult {
   cleanedContent: string;
 }
 
-const VALID_TYPES: Record<string, SectionType> = {
-  intro: 'intro',
-  verse: 'verse',
-  prechorus: 'pre-chorus',
-  'pre-chorus': 'pre-chorus',
-  chorus: 'chorus',
-  bridge: 'bridge',
-  solo: 'solo',
-  outro: 'outro',
-  tab: 'tab',
-  instrumental: 'intro',
-};
-
-function normalizeSectionType(raw: string): SectionType {
-  return VALID_TYPES[raw.toLowerCase().trim()] ?? 'unknown';
+export interface GeminiPocResult {
+  /** Texto del modelo (candidato), sin preprocessGeminiSongText. */
+  modelText: string;
+  /** Respuesta cruda de la API de Google (útil para depurar en consola). */
+  apiResponse: unknown;
 }
 
-/** "E Major" → "E", "A minor" → "Am", "Bb Mayor" → "Bb", "F# Minor" → "F#m" */
-function normalizeKey(raw: string): string {
-  const s = raw.trim();
-  const m = s.match(/^([A-G][#b]?)\s*(major|mayor|maj)?$/i);
-  if (m) return m[1];
-  const mi = s.match(/^([A-G][#b]?)\s*(minor|menor|min|m)$/i);
-  if (mi) return mi[1] + 'm';
-  return s;
-}
-
-/**
- * Convierte la línea de acordes (string con posiciones) + lyrics en ParsedLine.
- */
-function geminiLineToParsedLine(chords: string, lyrics: string): ParsedLine {
-  if (chords && chords.trim().length > 0 && isChordLine(chords)) {
-    return {
-      chords: extractChordsFromLine(chords),
-      text: lyrics || '',
-    };
+/** Quita cercos de código si el modelo los añade y [TAB]/[/TAB] envolviendo tablaturas. */
+export function preprocessGeminiSongText(s: string): string {
+  let t = s.trim();
+  if (t.startsWith('```')) {
+    const nl = t.indexOf('\n');
+    if (nl !== -1) t = t.slice(nl + 1);
+    if (t.endsWith('```')) t = t.slice(0, -3);
+    t = t.trim();
   }
-  return { chords: [], text: lyrics || '' };
+  t = t.replace(/\[TAB\]\s*/gi, '\n').replace(/\s*\[\/TAB\]\s*/gi, '\n');
+  return t.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/**
- * Convierte el resultado estructurado de Gemini en ParsedSong.
- * Bypasea completamente el parser heurístico.
- */
-export function geminiResultToParsedSong(
-  result: GeminiStructuredResult,
-  sourceUrl: string
-): ParsedSong {
-  const sections: ParsedSection[] = result.sections.map((sec) => {
-    const type = normalizeSectionType(sec.type);
-
-    if (type === 'tab' && sec.tablature) {
-      const tabLines = sec.tablature.split('\n').map((l) => ({
-        chords: [] as ParsedLine['chords'],
-        text: l,
-      }));
-      return { type, label: sec.label || 'Tablatura', lines: tabLines };
-    }
-
-    const lines: ParsedLine[] = sec.lines.map((l) =>
-      geminiLineToParsedLine(l.chords, l.lyrics)
-    );
-
-    return { type, label: sec.label || type, lines };
-  });
-
-  return {
-    title: result.title || '',
-    artist: result.artist || '',
-    sourceUrl,
-    originalKey: result.originalKey,
-    sections,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// API call
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Llama a Gemini y devuelve el resultado estructurado.
- * Si Gemini devuelve el formato nuevo con sections, lo usa directamente.
- * Si devuelve el formato viejo con cleanedContent, lo devuelve como fallback.
- */
-export async function analyzeWithGemini(
-  rawText: string,
-  hintTitle: string,
-  hintArtist: string
-): Promise<
-  | { mode: 'structured'; data: GeminiStructuredResult }
-  | { mode: 'cleaned'; data: GeminiCleanResult }
-> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY no configurada');
-  }
-
-  const userPrompt = [
+function buildUserPrompt(rawText: string, hintTitle: string, hintArtist: string): string {
+  return [
     hintTitle ? `Título sugerido: "${hintTitle}"` : '',
     hintArtist ? `Artista sugerido: "${hintArtist}"` : '',
     '',
-    'Texto crudo:',
+    'INPUT',
+    '',
     rawText,
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+async function callGeminiGenerateContent(userPrompt: string): Promise<{
+  modelText: string;
+  apiResponse: unknown;
+}> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY no configurada');
+  }
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
@@ -452,8 +296,7 @@ export async function analyzeWithGemini(
       },
       contents: [{ parts: [{ text: userPrompt }] }],
       generationConfig: {
-        response_mime_type: 'application/json',
-        temperature: 0.1,
+        temperature: 0.2,
         maxOutputTokens: 32768,
       },
     }),
@@ -462,95 +305,71 @@ export async function analyzeWithGemini(
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
     console.error('Gemini API error:', res.status, errBody);
-    throw new Error(`Gemini API respondió con ${res.status}`);
+    const { message, parsed } = parseGoogleApiErrorBody(errBody);
+    throw new GeminiApiError(message, res.status, parsed);
   }
 
-  const data = await res.json();
-  const textContent: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const apiResponse: unknown = await res.json();
+  logGeminiApiMeta(apiResponse);
 
-  if (!textContent) {
+  const data = apiResponse as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (textContent == null || String(textContent).length === 0) {
+    if (geminiDebugEnabled()) {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[Gemini debug] sin texto en candidates[0].content.parts[0]:',
+        JSON.stringify(apiResponse).slice(0, 2000)
+      );
+    }
     throw new Error('Gemini no devolvió contenido');
   }
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(textContent);
-  } catch {
-    throw new Error('Gemini devolvió JSON inválido');
-  }
-
-  const rawKey =
-    typeof parsed.originalKey === 'string' && parsed.originalKey.trim().length > 0
-      ? normalizeKey(parsed.originalKey)
-      : null;
-
-  const title =
-    typeof parsed.title === 'string' && parsed.title.trim().length > 0
-      ? parsed.title.trim()
-      : hintTitle;
-
-  const artist =
-    typeof parsed.artist === 'string' && parsed.artist.trim().length > 0
-      ? parsed.artist.trim()
-      : hintArtist;
-
-  // Prefer structured sections output
-  if (Array.isArray(parsed.sections) && parsed.sections.length > 0) {
-    return {
-      mode: 'structured',
-      data: {
-        title,
-        artist,
-        originalKey: rawKey,
-        capo: typeof parsed.capo === 'number' ? parsed.capo : null,
-        sections: parsed.sections as GeminiSection[],
-      },
-    };
-  }
-
-  // Fallback to cleanedContent format
-  const cleaned =
-    typeof parsed.cleanedContent === 'string' ? parsed.cleanedContent : '';
-  if (cleaned.trim().length === 0) {
-    throw new Error('Gemini no devolvió contenido estructurado ni texto limpio');
-  }
-
-  return {
-    mode: 'cleaned',
-    data: { title, artist, originalKey: rawKey, cleanedContent: cleaned },
-  };
+  return { modelText: String(textContent), apiResponse };
 }
 
-/** Backward-compatible wrapper */
+/**
+ * Respuesta del modelo + JSON completo de la API (sin parsear a ParsedSong).
+ */
+export async function analyzeWithGeminiPoc(
+  rawText: string,
+  hintTitle: string,
+  hintArtist: string
+): Promise<GeminiPocResult> {
+  const userPrompt = buildUserPrompt(rawText, hintTitle, hintArtist);
+  const { modelText, apiResponse } = await callGeminiGenerateContent(userPrompt);
+  return { modelText, apiResponse };
+}
+
+/**
+ * Llama a Gemini y devuelve solo el texto del modelo (recortado).
+ */
+export async function analyzeWithGemini(
+  rawText: string,
+  hintTitle: string,
+  hintArtist: string
+): Promise<string> {
+  const userPrompt = buildUserPrompt(rawText, hintTitle, hintArtist);
+  const { modelText } = await callGeminiGenerateContent(userPrompt);
+  logGeminiTextOutput(modelText, rawText.length);
+  return modelText.trim();
+}
+
+/** Mismo texto normalizado, envuelto en el tipo usado antes por compatibilidad. */
 export async function cleanWithGemini(
   rawText: string,
   hintTitle: string,
   hintArtist: string
 ): Promise<GeminiCleanResult> {
-  const result = await analyzeWithGemini(rawText, hintTitle, hintArtist);
-  if (result.mode === 'cleaned') return result.data;
-
-  // Convert structured to cleanedContent for backward compat
-  const lines: string[] = [];
-  for (const sec of result.data.sections) {
-    const label = sec.label || sec.type;
-    lines.push(`[${label}]`);
-    if (sec.tablature) {
-      lines.push(sec.tablature);
-    } else {
-      for (const l of sec.lines) {
-        if (l.chords) lines.push(l.chords);
-        if (l.lyrics) lines.push(l.lyrics);
-      }
-    }
-    lines.push('');
-  }
-
+  const raw = await analyzeWithGemini(rawText, hintTitle, hintArtist);
+  const cleanedContent = preprocessGeminiSongText(raw);
   return {
-    title: result.data.title,
-    artist: result.data.artist,
-    originalKey: result.data.originalKey,
-    cleanedContent: lines.join('\n').trim(),
+    title: hintTitle,
+    artist: hintArtist,
+    originalKey: null,
+    cleanedContent,
   };
 }
