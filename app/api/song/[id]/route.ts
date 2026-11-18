@@ -10,6 +10,48 @@ import type { ChordToken, FullSong, SongVersionActive } from '@/types';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** PATCH /api/song/:id — actualiza título y/o artista */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Body inválido' }, { status: 400 });
+  }
+
+  const title = typeof body.title === 'string' ? body.title.trim() : undefined;
+  const artist = typeof body.artist === 'string' ? body.artist.trim() : undefined;
+
+  if (title !== undefined && title.length === 0) {
+    return NextResponse.json({ error: 'El título no puede estar vacío' }, { status: 400 });
+  }
+  if (title === undefined && artist === undefined) {
+    return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
+  }
+
+  const patch: Record<string, string> = {};
+  if (title !== undefined) patch.title = title;
+  if (artist !== undefined) patch.artist = artist;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('songs')
+    .update(patch)
+    .eq('id', id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 /** GET /api/song/:id — canción completa con secciones y líneas; ?version=uuid aplica una versión guardada */
 export async function GET(
   request: NextRequest,

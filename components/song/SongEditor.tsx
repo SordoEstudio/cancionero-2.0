@@ -19,6 +19,7 @@ import { useTopNavHidden } from '@/components/layout/LayoutChrome';
 import { ViewModeSwitch } from '@/components/controls/ViewModeSwitch';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
+  Check,
   ChevronDown,
   Home,
   Maximize2,
@@ -28,6 +29,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pause,
+  Pencil,
   Play,
   Plus,
   SquarePen,
@@ -198,6 +200,42 @@ export function SongEditor({
   const [versionDialogKind, setVersionDialogKind] = useState<'new' | 'first' | 'dup' | null>(null);
   const prefsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevActiveSectionRef = useRef<string | null>(null);
+
+  // Título y artista editables localmente
+  const [localTitle, setLocalTitle] = useState(song.title);
+  const [localArtist, setLocalArtist] = useState(song.artist);
+  const [editingField, setEditingField] = useState<'title' | 'artist' | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const metaInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingField && metaInputRef.current) {
+      metaInputRef.current.focus();
+      metaInputRef.current.select();
+    }
+  }, [editingField]);
+
+  async function commitMetaEdit() {
+    if (!editingField) return;
+    const val = editingValue.trim();
+    const field = editingField;
+    setEditingField(null);
+    if (!val) return;
+    if (field === 'title' && val === localTitle) return;
+    if (field === 'artist' && val === localArtist) return;
+    if (field === 'title') setLocalTitle(val);
+    if (field === 'artist') setLocalArtist(val);
+    try {
+      await fetch(`/api/song/${song.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: val }),
+      });
+    } catch {
+      // silently ignore network errors
+    }
+  }
 
   useEffect(() => {
     scrollSpeedRef.current = scrollSpeed;
@@ -755,10 +793,74 @@ export function SongEditor({
         className="relative z-10 bg-[var(--bg-base)] border-b border-[var(--border)] px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3"
       >
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold text-[var(--text-primary)] truncate">
-            {song.title}
-          </h1>
-          <p className="text-sm text-[var(--text-secondary)] truncate">{song.artist}</p>
+          {/* Título editable */}
+          <div className="group/title flex items-center gap-1">
+            {editingField === 'title' ? (
+              <>
+                <input
+                  ref={metaInputRef}
+                  value={editingValue}
+                  onChange={(e) => setEditingValue(e.target.value)}
+                  onBlur={commitMetaEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitMetaEdit();
+                    if (e.key === 'Escape') setEditingField(null);
+                  }}
+                  className="text-lg font-bold bg-transparent border-b border-[var(--accent)] text-[var(--text-primary)] outline-none w-full max-w-xs"
+                />
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); commitMetaEdit(); }}
+                  className="p-0.5 rounded text-[var(--accent)]">
+                  <Check size={13} strokeWidth={ICON_STROKE} />
+                </button>
+              </>
+            ) : (
+              <>
+                <h1 className="text-lg font-bold text-[var(--text-primary)] truncate">{localTitle}</h1>
+                <button
+                  type="button"
+                  title="Editar título"
+                  onClick={() => { setEditingValue(localTitle); setEditingField('title'); }}
+                  className="shrink-0 p-0.5 rounded text-[var(--text-muted)] opacity-0 group-hover/title:opacity-100 hover:text-[var(--accent)] transition-opacity"
+                >
+                  <Pencil size={12} strokeWidth={ICON_STROKE} />
+                </button>
+              </>
+            )}
+          </div>
+          {/* Artista editable */}
+          <div className="group/artist flex items-center gap-1">
+            {editingField === 'artist' ? (
+              <>
+                <input
+                  ref={metaInputRef}
+                  value={editingValue}
+                  onChange={(e) => setEditingValue(e.target.value)}
+                  onBlur={commitMetaEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitMetaEdit();
+                    if (e.key === 'Escape') setEditingField(null);
+                  }}
+                  className="text-sm bg-transparent border-b border-[var(--accent)] text-[var(--text-secondary)] outline-none w-full max-w-xs"
+                />
+                <button type="button" onMouseDown={(e) => { e.preventDefault(); commitMetaEdit(); }}
+                  className="p-0.5 rounded text-[var(--accent)]">
+                  <Check size={12} strokeWidth={ICON_STROKE} />
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--text-secondary)] truncate">{localArtist}</p>
+                <button
+                  type="button"
+                  title="Editar artista"
+                  onClick={() => { setEditingValue(localArtist); setEditingField('artist'); }}
+                  className="shrink-0 p-0.5 rounded text-[var(--text-muted)] opacity-0 group-hover/artist:opacity-100 hover:text-[var(--accent)] transition-opacity"
+                >
+                  <Pencil size={11} strokeWidth={ICON_STROKE} />
+                </button>
+              </>
+            )}
+          </div>
           {activeVersion && (
             <p className="text-xs text-[var(--accent)] truncate mt-0.5" title={activeVersion.name}>
               Versión: {activeVersion.name}
