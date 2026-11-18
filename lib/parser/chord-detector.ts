@@ -1,13 +1,15 @@
 /**
  * Detecta si un token es un acorde musical.
  *
- * Soporta: Am, F#m7, Bb, C/G, Gsus4, Ddim, Eaug, Cmaj7, D7/F#,
+ * Soporta notación inglesa: Am, F#m7, Bb, C/G, Gsus4, Ddim, Eaug, Cmaj7, D7/F#,
  *          D(add9), Asus4(add9), Bm7b5/A, Cmaj9, F#7sus4, G13,
  *          Am7(b5), C#dim7, Eb6/9, Dmaj7#11, etc.
+ * Soporta notación española (solfeo): LAm, RE, SIm, MIm, DO, SOL, FA, etc.
+ *          Los acordes españoles se traducen a notación inglesa al extraer.
  */
 
 /**
- * Regex para un acorde completo:
+ * Regex para un acorde completo en notación inglesa:
  *
  *   ROOT          [A-G][#b]?
  *   QUALITY       m|min|maj|M|sus|dim|aug|°|+|Δ  (optional)
@@ -17,12 +19,57 @@
 const CHORD_RE =
   /^[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|º|\+|Δ)?[0-9#b()addsumajnoMÆº°]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?\*?$/;
 
+// ─── Notación española (solfeo) ────────────────────────────────────────────
+// DO=C, RE=D, MI=E, FA=F, SOL=G, LA=A, SI=B
+// Orden en alternación: SOL antes que SI para evitar match parcial.
+const _SP_ROOTS = '(?:DO|RE|MI|FA|SOL|LA|SI)';
+const _SP_QUALITY = '(?:m(?!aj)|min|maj|M|sus|dim|aug|°|º|\\+|Δ)?';
+const _SP_EXT = '[0-9#b()addsumajnoMÆº°]{0,20}';
+const _SP_BASS = '(?:\\/' + _SP_ROOTS + '[#b]?|/[0-9]+)?';
+
+/** Acorde completo en notación española (anclado ^ $) */
+const SPANISH_CHORD_RE = new RegExp(
+  '^' + _SP_ROOTS + '[#b]?' + _SP_QUALITY + _SP_EXT + _SP_BASS + '\\*?$'
+);
+
+/** Extracción de acordes españoles (global, sin anclar) */
+const SPANISH_EXTRACT_RE = new RegExp(
+  _SP_ROOTS + '[#b]?' + _SP_QUALITY + _SP_EXT + _SP_BASS + '\\*?',
+  'g'
+);
+
+/** Regex para traducir raíz española a inglesa, captura raíz+accidental+resto+bajo-opcional */
+const SPANISH_TRANSLATE_RE = new RegExp(
+  '^(DO|RE|MI|FA|SOL|LA|SI)([#b]?)(.*?)(?:\\/(DO|RE|MI|FA|SOL|LA|SI)([#b]?))?$'
+);
+
+const SPANISH_ROOT_MAP: Record<string, string> = {
+  DO: 'C', RE: 'D', MI: 'E', FA: 'F', SOL: 'G', LA: 'A', SI: 'B',
+};
+
+function isSpanishChord(token: string): boolean {
+  return SPANISH_CHORD_RE.test(token.trim());
+}
+
+/** Traduce un acorde en notación española a notación inglesa. LAm→Am, SOL→G, etc. */
+function spanishToEnglish(token: string): string {
+  const m = token.trim().match(SPANISH_TRANSLATE_RE);
+  if (!m) return token;
+  const [, root, acc, rest, bassRoot, bassAcc = ''] = m;
+  const eng = (SPANISH_ROOT_MAP[root] ?? root) + acc + rest;
+  if (bassRoot) return eng + '/' + (SPANISH_ROOT_MAP[bassRoot] ?? bassRoot) + bassAcc;
+  return eng;
+}
+// ───────────────────────────────────────────────────────────────────────────
+
 export function isChord(token: string): boolean {
   const t = token.trim();
   if (t.length === 0 || t.length > 30) return false;
   // Disminuido con ordinal español (LaCuerda / sitios latinos): G#º, F#º
   if (/^[A-G][#b]?º$/u.test(t) || /^[A-G][#b]?°$/u.test(t)) return true;
-  return CHORD_RE.test(t);
+  if (CHORD_RE.test(t)) return true;
+  if (isSpanishChord(t)) return true;
+  return false;
 }
 
 /**
@@ -38,6 +85,7 @@ function chordLineSignificantTokens(line: string): string[] {
     .filter((tok) => {
       if (tok === '-' || tok === '–' || tok === '—') return false;
       if (/^\([^)]*\)$/.test(tok)) return false; // (x1), (x2)
+      if (/^x\d+$/i.test(tok)) return false; // x2, x3 sin paréntesis
       if (tok === '[' || tok === ']') return false;
       return true;
     });
@@ -70,6 +118,8 @@ export function isChordLine(line: string): boolean {
  *
  * Captura: ROOT + QUALITY? + EXTENSIONS? + SLASH?
  * Luego valida cada match con isChord() para descartar falsos positivos.
+ * Los acordes en notación española se extraen primero y se traducen al inglés,
+ * evitando que el extractor inglés confunda "DO" con el acorde "D".
  */
 const EXTRACT_RE =
   /[A-G][#b]?(?:m|min|maj|M|sus|dim|aug|°|º|\+|Δ)?[0-9#b()addsumajnoMÆº°]{0,20}(?:\/(?:[A-G][#b]?|[0-9]+))?\*?/g;
@@ -78,16 +128,29 @@ export function extractChordsFromLine(
   chordLine: string
 ): Array<{ position: number; chord: string }> {
   const result: Array<{ position: number; chord: string }> = [];
+  // Posiciones ya cubiertas por un acorde español (para que el extractor inglés las omita)
+  const covered = new Set<number>();
   let match: RegExpExecArray | null;
 
+  // 1. Acordes españoles primero (tienen prioridad sobre ingleses en las mismas posiciones)
+  SPANISH_EXTRACT_RE.lastIndex = 0;
+  while ((match = SPANISH_EXTRACT_RE.exec(chordLine)) !== null) {
+    if (isSpanishChord(match[0])) {
+      result.push({ position: match.index, chord: spanishToEnglish(match[0]) });
+      for (let i = 0; i < match[0].length; i++) covered.add(match.index + i);
+    }
+  }
+
+  // 2. Acordes ingleses, saltando posiciones ya cubiertas por españoles
   EXTRACT_RE.lastIndex = 0;
   while ((match = EXTRACT_RE.exec(chordLine)) !== null) {
+    if (covered.has(match.index)) continue;
     if (isChord(match[0])) {
       result.push({ position: match.index, chord: match[0] });
     }
   }
 
-  return result;
+  return result.sort((a, b) => a.position - b.position);
 }
 
 const ROOT_RE = /^([A-G][#b]?)/;

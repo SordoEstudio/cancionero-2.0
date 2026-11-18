@@ -14,6 +14,9 @@ const LABEL_MAP: Record<string, SectionType> = {
   'pre-coro': 'pre-chorus',
   'pre coro': 'pre-chorus',
   'pre-chorus': 'pre-chorus',
+  'pre-estribillo': 'pre-chorus',
+  'pre estribillo': 'pre-chorus',
+  preestribillo: 'pre-chorus',
   precoro: 'pre-chorus',
   coro: 'chorus',
   chorus: 'chorus',
@@ -79,6 +82,8 @@ export function explicitSectionTypeFromLabel(label: string | null): SectionType 
   if (/^tab(?:latura)?$/i.test(n) || /^tab\b/i.test(n)) return 'tab';
   if (/^intro\b/i.test(n)) return 'intro';
   if (/^pre[-\s]?coro\b/i.test(n)) return 'pre-chorus';
+  if (/^pre[-\s]?estribillo\b/i.test(n)) return 'pre-chorus';
+  if (/^pre[-\s]?chorus\b/i.test(n)) return 'pre-chorus';
   if (/^verso\b/i.test(n)) return 'verse';
   if (/^estrofa\b/i.test(n)) return 'verse';
   if (/^coro\b/i.test(n)) return 'chorus';

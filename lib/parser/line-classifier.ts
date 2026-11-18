@@ -10,7 +10,7 @@ interface ClassifiedLine {
 }
 
 const SECTION_LABEL_REGEX =
-  /^\s*\[?(?:intro|verse|estrofa|verso(?:\s+\d+)?|coro(?:\s+\d+)?|chorus(?:\s+\d+)?|puente|bridge|pre[-\s]?coro(?:\s+\d+)?|pre[-\s]?chorus(?:\s+\d+)?|solo|outro|final(?:\s+coral)?|interludio|interlude|inter(?:\s*coral)?|instrumental|tab(?:latura)?(?:\s*:\s*[^\]]*)?|secci[oó]n\s*\d+)\]?\s*:?\s*$/i;
+  /^\s*\[?(?:intro|verse|estrofa|verso(?:\s+\d+)?|coro(?:\s+\d+)?|chorus(?:\s+\d+)?|estribillo(?:\s+\d+)?|puente|bridge|pre[-\s]?coro(?:\s+\d+)?|pre[-\s]?chorus(?:\s+\d+)?|pre[-\s]?estribillo(?:\s+\d+)?|solo|outro|final(?:\s+coral)?|interludio|interlude|inter(?:\s*coral)?|instrumental|tab(?:latura)?(?:\s*:\s*[^\]]*)?|secci[oó]n\s*\d+)\]?\s*:?\s*$/i;
 
 /**
  * Guitar tablature: a string letter (e/B/G/D/A/E) followed by a long run of
