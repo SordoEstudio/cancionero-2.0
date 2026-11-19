@@ -236,12 +236,6 @@ export function LoginForm() {
         <p className="mt-4 text-center text-sm text-[var(--success)]">{magicMessage}</p>
       )}
 
-      <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
-        También podés explorar canciones sin iniciar sesión.{' '}
-        <a href="/" className="text-[var(--accent)] hover:underline">
-          Ir al inicio
-        </a>
-      </p>
     </main>
   );
 }
