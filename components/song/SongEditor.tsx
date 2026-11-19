@@ -192,6 +192,16 @@ export function SongEditor({
   });
   const [stageMode, setStageMode] = useState(() => !!setlistContext);
   const [setlistOpen, setSetlistOpen] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return { scroll: true, tone: true, view: true, zoom: true };
+    try {
+      const stored = localStorage.getItem('panel-open-sections');
+      const parsed = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
+      return { scroll: true, tone: true, view: true, zoom: true, ...parsed };
+    } catch {
+      return { scroll: true, tone: true, view: true, zoom: true };
+    }
+  });
   // Ensure stage mode activates even if hydration ran before setlistContext arrived
   useEffect(() => {
     if (setlistContext?.setlistId) setStageMode(true);
@@ -759,6 +769,14 @@ export function SongEditor({
 
   async function handleSaveAsNewVersion() {
     openVersionNameDialog('new');
+  }
+
+  function toggleSection(key: string) {
+    setOpenSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem('panel-open-sections', JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   function navigateToSong(songId: string, versionId: string | null, newPos: number) {
@@ -1353,132 +1371,155 @@ export function SongEditor({
           <aside
             aria-label="Tono, scroll automático, vista y tamaño de texto"
             className={[
-              'w-full shrink-0 space-y-3 border-[var(--border)] bg-[var(--bg-surface)] p-3 sm:p-4',
+              'w-full shrink-0 border-[var(--border)] bg-[var(--bg-surface)]',
               'border-t md:w-64 md:border-l md:border-t-0',
               'max-h-[min(28rem,78svh)] overflow-y-auto overscroll-y-contain md:max-h-none',
               'md:sticky md:top-16 md:h-[calc(100vh-4rem)]',
             ].join(' ')}
           >
             {!editMode && (
-              <ScrollControl
-                speed={scrollSpeed}
-                onSpeedChange={setScrollSpeed}
-                playing={scrollPlaying}
-                onTogglePlay={toggleAutoScroll}
-                onReset={resetAutoScroll}
-              />
-            )}
-            <ToneSelector
-              originalKey={song.original_key}
-              transposeSteps={transposeSteps}
-              capo={capo}
-              useFlats={useFlats}
-              onTransposeChange={setTransposeSteps}
-              onCapoChange={setCapo}
-            />
-            {!editMode && (
-              <ViewModeSwitch
-                value={viewMode}
-                onChange={setViewMode}
-                hasTabs={hasTabs}
-                allTabsHidden={allTabsHidden}
-                onToggleTabs={toggleAllTabs}
-              />
-            )}
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                Tamaño
-              </p>
-              <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                <span className="shrink-0 sm:pt-0">Acordes</span>
-                <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
-                  <input
-                    type="range"
-                    min="0.7"
-                    max="2"
-                    step="0.1"
-                    value={chordZoom}
-                    onChange={(e) => setChordZoom(parseFloat(e.target.value))}
-                    className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)] sm:w-24 sm:flex-none"
-                  />
-                  <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">
-                    {chordZoom.toFixed(1)}
-                  </span>
-                </span>
-              </label>
-              <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                <span className="shrink-0 sm:pt-0">Letra</span>
-                <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
-                  <input
-                    type="range"
-                    min="0.7"
-                    max="2"
-                    step="0.1"
-                    value={lyricZoom}
-                    onChange={(e) => setLyricZoom(parseFloat(e.target.value))}
-                    className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)] sm:w-24 sm:flex-none"
-                  />
-                  <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">
-                    {lyricZoom.toFixed(1)}
-                  </span>
-                </span>
-              </label>
-              {(chordZoom !== 1 || lyricZoom !== 1) && (
+              <div className="border-b border-[var(--border)]">
                 <button
                   type="button"
-                  onClick={() => {
-                    setChordZoom(1);
-                    setLyricZoom(1);
-                  }}
-                  className="text-[10px] text-[var(--accent)] hover:underline"
+                  onClick={() => toggleSection('scroll')}
+                  className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                 >
-                  Restablecer tamaño
+                  Scroll automático
+                  <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.scroll ? '' : '-rotate-90'}`} aria-hidden />
                 </button>
-              )}
-            </div>
+                {openSections.scroll && (
+                  <div className="px-3 pb-3">
+                    <ScrollControl
+                      speed={scrollSpeed}
+                      onSpeedChange={setScrollSpeed}
+                      playing={scrollPlaying}
+                      onTogglePlay={toggleAutoScroll}
+                      onReset={resetAutoScroll}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="text-xs text-[var(--text-muted)] space-y-1 pt-2">
-              {song.original_key && (
-                <p>
-                  Tono original:{' '}
-                  <span className="font-mono text-[var(--chord-color)]">{song.original_key}</span>
-                </p>
-              )}
-              <a
-                href={song.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block hover:text-[var(--accent)] underline truncate"
+            <div className="border-b border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => toggleSection('tone')}
+                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
-                Ver fuente original
-              </a>
+                Tono
+                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.tone ? '' : '-rotate-90'}`} aria-hidden />
+              </button>
+              {openSections.tone && (
+                <div className="px-3 pb-3">
+                  <ToneSelector
+                    originalKey={song.original_key}
+                    transposeSteps={transposeSteps}
+                    capo={capo}
+                    useFlats={useFlats}
+                    onTransposeChange={setTransposeSteps}
+                    onCapoChange={setCapo}
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="border-t border-[var(--border)] pt-2">
+            {!editMode && (
+              <div className="border-b border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('view')}
+                  className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Vista
+                  <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.view ? '' : '-rotate-90'}`} aria-hidden />
+                </button>
+                {openSections.view && (
+                  <div className="px-3 pb-3">
+                    <ViewModeSwitch
+                      value={viewMode}
+                      onChange={setViewMode}
+                      hasTabs={hasTabs}
+                      allTabsHidden={allTabsHidden}
+                      onToggleTabs={toggleAllTabs}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="border-b border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => toggleSection('zoom')}
+                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                Tamaño de texto
+                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.zoom ? '' : '-rotate-90'}`} aria-hidden />
+              </button>
+              {openSections.zoom && (
+                <div className="space-y-2 px-3 pb-3">
+                  <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                    <span className="shrink-0">Acordes</span>
+                    <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
+                      <input
+                        type="range" min="0.7" max="2" step="0.1" value={chordZoom}
+                        onChange={(e) => setChordZoom(parseFloat(e.target.value))}
+                        className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
+                      />
+                      <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{chordZoom.toFixed(1)}</span>
+                    </span>
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                    <span className="shrink-0">Letra</span>
+                    <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
+                      <input
+                        type="range" min="0.7" max="2" step="0.1" value={lyricZoom}
+                        onChange={(e) => setLyricZoom(parseFloat(e.target.value))}
+                        className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
+                      />
+                      <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{lyricZoom.toFixed(1)}</span>
+                    </span>
+                  </label>
+                  {(chordZoom !== 1 || lyricZoom !== 1) && (
+                    <button type="button" onClick={() => { setChordZoom(1); setLyricZoom(1); }} className="text-[10px] text-[var(--accent)] hover:underline">
+                      Restablecer tamaño
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-b border-[var(--border)]">
               <button
                 type="button"
                 onClick={() => setNotesOpen((o) => !o)}
-                className="flex items-center gap-1 w-full text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider hover:text-[var(--text-primary)]"
+                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
-                <ChevronDown
-                  size={12}
-                  strokeWidth={ICON_STROKE}
-                  className={`shrink-0 transition-transform ${notesOpen ? '' : '-rotate-90'}`}
-                  aria-hidden
-                />
                 Notas
+                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${notesOpen ? '' : '-rotate-90'}`} aria-hidden />
               </button>
               {notesOpen && (
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Apuntes, ideas, recordatorios…"
-                  rows={3}
-                  className="mt-1.5 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                  style={{ minHeight: '3rem' }}
-                />
+                <div className="px-3 pb-3">
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Apuntes, ideas, recordatorios…"
+                    rows={3}
+                    className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                    style={{ minHeight: '3rem' }}
+                  />
+                </div>
               )}
+            </div>
+
+            <div className="px-3 py-3 text-xs text-[var(--text-muted)] space-y-1">
+              {song.original_key && (
+                <p>Tono original: <span className="font-mono text-[var(--chord-color)]">{song.original_key}</span></p>
+              )}
+              <a href={song.source_url} target="_blank" rel="noopener noreferrer" className="block hover:text-[var(--accent)] underline truncate">
+                Ver fuente original
+              </a>
             </div>
           </aside>
         )}
