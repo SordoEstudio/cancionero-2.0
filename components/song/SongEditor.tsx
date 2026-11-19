@@ -386,6 +386,7 @@ export function SongEditor({
   } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
+  const [stageFabOpen, setStageFabOpen] = useState(false);
   const songHeaderRef = useRef<HTMLElement>(null);
   const [songHeaderInView, setSongHeaderInView] = useState(true);
 
@@ -1361,87 +1362,6 @@ export function SongEditor({
         </div>
       )}
 
-      {stageMode && (
-        <div className="fixed right-4 top-4 z-[160] flex items-center gap-2">
-          {setlistContext && (
-            <>
-              {setlistContext.prevSong && (
-                <button
-                  type="button"
-                  className={floatBtnClass}
-                  title="Canción anterior"
-                  aria-label="Canción anterior del setlist"
-                  onClick={() =>
-                    navigateToSong(
-                      setlistContext.prevSong!.songId,
-                      setlistContext.prevSong!.versionId,
-                      setlistContext.position - 1
-                    )
-                  }
-                >
-                  <ChevronLeft size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-                </button>
-              )}
-              <span className="rounded-full bg-[var(--bg-elevated)]/90 px-3 py-1 text-xs font-semibold tabular-nums text-[var(--text-secondary)] border border-[var(--border)]">
-                {setlistContext.position + 1} / {setlistContext.total}
-              </span>
-              {setlistContext.nextSong && (
-                <button
-                  type="button"
-                  className={floatBtnClass}
-                  title="Siguiente canción"
-                  aria-label="Siguiente canción del setlist"
-                  onClick={() =>
-                    navigateToSong(
-                      setlistContext.nextSong!.songId,
-                      setlistContext.nextSong!.versionId,
-                      setlistContext.position + 1
-                    )
-                  }
-                >
-                  <ChevronRight size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-                </button>
-              )}
-              <button
-                type="button"
-                className={setlistOpen
-                  ? `${floatBtnClass} border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]`
-                  : floatBtnClass}
-                title="Ver lista del setlist"
-                aria-label="Ver lista completa del setlist"
-                onClick={() => setSetlistOpen((o) => !o)}
-              >
-                <List size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className={floatBtnClass}
-            title="Salir de modo escenario"
-            aria-label="Salir de modo escenario"
-            onClick={() => setStageMode(false)}
-          >
-            <Minimize2 size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={
-              scrollPlaying
-                ? `${floatBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`
-                : floatBtnClass
-            }
-            title={scrollPlaying ? 'Pausar scroll' : 'Iniciar scroll automático'}
-            aria-label={scrollPlaying ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
-            onClick={toggleAutoScroll}
-          >
-            {scrollPlaying
-              ? <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-              : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-            }
-          </button>
-        </div>
-      )}
 
       {stageMode && setlistOpen && setlistContext && (
         <div className="fixed inset-0 z-[170] flex flex-col" role="dialog" aria-modal aria-label="Lista del setlist">
@@ -1794,55 +1714,189 @@ export function SongEditor({
 
       {!editMode && (
         <div
-          className={`fixed bottom-4 left-1/2 z-[150] flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 px-2 py-1.5 shadow-lg backdrop-blur-sm md:bottom-6${stageMode ? ' opacity-30 hover:opacity-100 transition-opacity' : ''}`}
+          className="fixed bottom-4 left-1/2 z-[150] flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 px-2 py-1.5 shadow-lg backdrop-blur-sm md:bottom-6"
           role="toolbar"
-          aria-label="Velocidad de scroll, reproducción automática y secciones"
+          aria-label={stageMode ? 'Controles de setlist' : 'Velocidad de scroll, reproducción automática y secciones'}
         >
-          <button
-            type="button"
-            className={fabBtnClass}
-            title="Bajar velocidad de scroll"
-            aria-label="Bajar velocidad de scroll automático"
-            onClick={() => adjustScrollSpeed(-5)}
-          >
-            <Minus size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={fabBtnClass}
-            title="Subir velocidad de scroll"
-            aria-label="Subir velocidad de scroll automático"
-            onClick={() => adjustScrollSpeed(5)}
-          >
-            <Plus size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={
-              scrollPlaying
-                ? `${fabBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`
-                : fabBtnClass
-            }
-            title={scrollPlaying ? 'Pausar scroll' : 'Iniciar scroll automático'}
-            aria-label={scrollPlaying ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
-            onClick={toggleAutoScroll}
-          >
-            {scrollPlaying ? (
-              <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-            ) : (
-              <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-            )}
-          </button>
-          <button
-            type="button"
-            className={fabBtnClass}
-            title="Siguiente sección de la canción (verso, estribillo…)"
-            aria-label="Desplazarse a la siguiente sección de la canción"
-            onClick={goToNextSection}
-          >
-            <ChevronDown size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0 -rotate-90" aria-hidden />
-          </button>
+          {stageMode ? (
+            <>
+              {/* Stage mode: prev / scroll / counter / next */}
+              <button
+                type="button"
+                className={setlistContext?.prevSong ? fabBtnClass : `${fabBtnClass} opacity-30 pointer-events-none`}
+                title="Canción anterior"
+                aria-label="Canción anterior del setlist"
+                onClick={() => setlistContext?.prevSong && navigateToSong(
+                  setlistContext.prevSong.songId,
+                  setlistContext.prevSong.versionId,
+                  setlistContext.position - 1
+                )}
+              >
+                <ChevronLeft size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={scrollPlaying
+                  ? `${fabBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10`
+                  : fabBtnClass}
+                title={scrollPlaying ? 'Pausar scroll' : 'Iniciar scroll automático'}
+                aria-label={scrollPlaying ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
+                onClick={toggleAutoScroll}
+              >
+                {scrollPlaying
+                  ? <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+                  : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />}
+              </button>
+              {setlistContext && (
+                <span className="px-2 text-xs font-semibold tabular-nums text-[var(--text-secondary)]">
+                  {setlistContext.position + 1}/{setlistContext.total}
+                </span>
+              )}
+              <button
+                type="button"
+                className={setlistContext?.nextSong ? fabBtnClass : `${fabBtnClass} opacity-30 pointer-events-none`}
+                title="Siguiente canción"
+                aria-label="Siguiente canción del setlist"
+                onClick={() => setlistContext?.nextSong && navigateToSong(
+                  setlistContext.nextSong.songId,
+                  setlistContext.nextSong.versionId,
+                  setlistContext.position + 1
+                )}
+              >
+                <ChevronRight size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Normal mode: speed − + / scroll / next-section */}
+              <button
+                type="button"
+                className={fabBtnClass}
+                title="Bajar velocidad de scroll"
+                aria-label="Bajar velocidad de scroll automático"
+                onClick={() => adjustScrollSpeed(-5)}
+              >
+                <Minus size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={fabBtnClass}
+                title="Subir velocidad de scroll"
+                aria-label="Subir velocidad de scroll automático"
+                onClick={() => adjustScrollSpeed(5)}
+              >
+                <Plus size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={scrollPlaying
+                  ? `${fabBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`
+                  : fabBtnClass}
+                title={scrollPlaying ? 'Pausar scroll' : 'Iniciar scroll automático'}
+                aria-label={scrollPlaying ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
+                onClick={toggleAutoScroll}
+              >
+                {scrollPlaying
+                  ? <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+                  : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />}
+              </button>
+              <button
+                type="button"
+                className={fabBtnClass}
+                title="Siguiente sección de la canción (verso, estribillo…)"
+                aria-label="Desplazarse a la siguiente sección de la canción"
+                onClick={goToNextSection}
+              >
+                <ChevronDown size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0 -rotate-90" aria-hidden />
+              </button>
+            </>
+          )}
         </div>
+      )}
+
+      {/* Stage FAB — bottom-right: list + exit (same z as settings FAB, hidden when settings FAB shows) */}
+      {stageMode && !editMode && (
+        <>
+          {stageFabOpen && (
+            <div
+              className="fixed inset-0 z-[148]"
+              onClick={() => setStageFabOpen(false)}
+            />
+          )}
+          <div
+            className="fixed bottom-4 right-4 z-[149]"
+            style={{ width: 56, height: 56 }}
+          >
+            {/* Item 1 — Setlist (only if setlistContext) */}
+            {setlistContext && (
+              <div
+                className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
+                style={{
+                  bottom: 68,
+                  opacity: stageFabOpen ? 1 : 0,
+                  transform: stageFabOpen ? 'translateY(0)' : 'translateY(10px)',
+                  transition: 'opacity 150ms ease, transform 150ms ease',
+                  transitionDelay: stageFabOpen ? '0ms' : '0ms',
+                  pointerEvents: stageFabOpen ? 'auto' : 'none',
+                }}
+              >
+                <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                  {setlistContext.setlistName}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Ver lista del setlist"
+                  onClick={() => { setSetlistOpen((o) => !o); setStageFabOpen(false); }}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border shadow-md backdrop-blur-sm transition-colors ${setlistOpen ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'}`}
+                >
+                  <List size={20} strokeWidth={ICON_STROKE} aria-hidden />
+                </button>
+              </div>
+            )}
+            {/* Item 2 — Exit */}
+            <div
+              className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
+              style={{
+                bottom: setlistContext ? 128 : 68,
+                opacity: stageFabOpen ? 1 : 0,
+                transform: stageFabOpen ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 150ms ease, transform 150ms ease',
+                transitionDelay: stageFabOpen ? (setlistContext ? '50ms' : '0ms') : '0ms',
+                pointerEvents: stageFabOpen ? 'auto' : 'none',
+              }}
+            >
+              <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                Salir escenario
+              </span>
+              <button
+                type="button"
+                aria-label="Salir de modo escenario"
+                onClick={() => { setStageMode(false); setStageFabOpen(false); }}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-md backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors"
+              >
+                <Minimize2 size={20} strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+            </div>
+            {/* Main stage FAB */}
+            <button
+              type="button"
+              aria-label={stageFabOpen ? 'Cerrar menú escenario' : 'Opciones de escenario'}
+              aria-expanded={stageFabOpen}
+              onClick={() => setStageFabOpen((o) => !o)}
+              className="absolute inset-0 flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-lg backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors active:scale-95"
+            >
+              <Maximize2
+                size={22}
+                strokeWidth={ICON_STROKE}
+                aria-hidden
+                style={{
+                  transform: stageFabOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 200ms ease',
+                }}
+              />
+            </button>
+          </div>
+        </>
       )}
 
       <TextPromptDialog
