@@ -19,16 +19,19 @@ import { useTopNavHidden } from '@/components/layout/LayoutChrome';
 import { ViewModeSwitch } from '@/components/controls/ViewModeSwitch';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
+  Brackets,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Home,
+  LayoutList,
   List,
   Maximize2,
   Menu,
   Minimize2,
   Minus,
+  Music2,
   PanelRightClose,
   PanelRightOpen,
   Pause,
@@ -37,8 +40,10 @@ import {
   Plus,
   SlidersHorizontal,
   SquarePen,
+  Type,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ICON_INLINE, ICON_STROKE } from '@/components/ui/icon-tokens';
 import { IconButton, lucideInIconButton } from '@/components/ui/IconButton';
 import { Button } from '@/components/ui/Button';
@@ -93,6 +98,27 @@ function prefsEqual(a: PrefsBaseline, b: PrefsBaseline): boolean {
     a.notes === b.notes
   );
 }
+
+const VIEW_MODE_CYCLE: ViewMode[] = ['default', 'inline', 'chords-only', 'lyrics-only'];
+
+function nextViewMode(current: ViewMode): ViewMode {
+  const idx = VIEW_MODE_CYCLE.indexOf(current);
+  return VIEW_MODE_CYCLE[(idx + 1) % VIEW_MODE_CYCLE.length]!;
+}
+
+const VIEW_MODE_ICONS: Record<ViewMode, LucideIcon> = {
+  default: LayoutList,
+  inline: Brackets,
+  'chords-only': Music2,
+  'lyrics-only': Type,
+};
+
+const VIEW_MODE_LABELS: Record<ViewMode, string> = {
+  default: 'Normal',
+  inline: 'Inline',
+  'chords-only': 'Solo acordes',
+  'lyrics-only': 'Solo letra',
+};
 
 function sectionColorVar(type: SectionType): string {
   switch (type) {
@@ -359,7 +385,7 @@ export function SongEditor({
     title?: string;
   } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
   const songHeaderRef = useRef<HTMLElement>(null);
   const [songHeaderInView, setSongHeaderInView] = useState(true);
 
@@ -1243,12 +1269,6 @@ export function SongEditor({
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
                       className={menuItemClass}
-                      onSelect={() => setPanelOpen((o) => !o)}
-                    >
-                      {panelOpen ? 'Ocultar panel lateral' : 'Mostrar panel lateral'}
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      className={menuItemClass}
                       onSelect={() => {
                         setStageMode(true);
                         if (!scrollPlaying) playAutoScroll();
@@ -1598,78 +1618,169 @@ export function SongEditor({
         )}
       </div>
 
-      {/* Mobile FAB — opens tool panel as bottom sheet */}
-      {!stageMode && !editMode && (
-        <button
-          type="button"
-          title="Opciones (tono, scroll, vista…)"
-          aria-label="Abrir panel de opciones"
-          onClick={() => setMobilePanelOpen(true)}
-          className="md:hidden fixed bottom-20 right-4 z-[110] flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-xl hover:opacity-90 active:scale-95 transition-transform"
-        >
-          <SlidersHorizontal size={22} strokeWidth={ICON_STROKE} aria-hidden />
-        </button>
+      {/* Mobile FAB speed-dial — backdrop closes dial */}
+      {fabOpen && !stageMode && !editMode && (
+        <div
+          className="md:hidden fixed inset-0 z-[148]"
+          onClick={() => setFabOpen(false)}
+        />
       )}
 
-      {/* Mobile bottom sheet */}
-      {mobilePanelOpen && !stageMode && (
-        <>
+      {/* Mobile FAB speed-dial container */}
+      {!stageMode && !editMode && (
+        <div className="md:hidden fixed bottom-4 right-4 z-[149] flex flex-col-reverse items-end gap-3">
+
+          {/* Item 1 — Tono */}
           <div
-            className="md:hidden fixed inset-0 z-[119] bg-black/30"
-            onClick={() => setMobilePanelOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal
-            aria-label="Opciones de canción"
-            className="md:hidden fixed bottom-0 left-0 right-0 z-[120] flex flex-col rounded-t-2xl bg-[var(--bg-surface)] border-t border-[var(--border)] shadow-2xl max-h-[80svh]"
+            className="flex items-center gap-2"
+            style={{
+              opacity: fabOpen ? 1 : 0,
+              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transition: 'opacity 150ms ease, transform 150ms ease',
+              transitionDelay: fabOpen ? '0ms' : '0ms',
+              pointerEvents: fabOpen ? 'auto' : 'none',
+            }}
           >
-            {/* Handle + header */}
-            <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-2 border-b border-[var(--border)]">
-              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--border)] absolute top-2 left-1/2 -translate-x-1/2" />
-              <span className="text-sm font-semibold text-[var(--text-primary)]">Opciones</span>
+            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              Tono
+            </span>
+            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)] shadow-md">
               <button
                 type="button"
-                onClick={() => setMobilePanelOpen(false)}
-                aria-label="Cerrar panel"
-                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                aria-label="Bajar un semitono"
+                onClick={() => setTransposeSteps((s) => s - 1)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors"
               >
-                <X size={ICON_INLINE} strokeWidth={ICON_STROKE} aria-hidden />
+                <Minus size={14} strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+              <span className="min-w-[2.75rem] px-1 text-center text-sm font-semibold tabular-nums text-[var(--chord-color)]">
+                {playingKeyDisplay ?? (transposeSteps === 0 ? '0' : `${transposeSteps > 0 ? '+' : ''}${transposeSteps}`)}
+              </span>
+              <button
+                type="button"
+                aria-label="Subir un semitono"
+                onClick={() => setTransposeSteps((s) => s + 1)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <Plus size={14} strokeWidth={ICON_STROKE} aria-hidden />
               </button>
             </div>
-            <div className="overflow-y-auto overscroll-y-contain">
-              <PanelSections
-                editMode={editMode}
-                openSections={openSections}
-                toggleSection={toggleSection}
-                scrollSpeed={scrollSpeed}
-                setScrollSpeed={setScrollSpeed}
-                scrollPlaying={scrollPlaying}
-                toggleAutoScroll={toggleAutoScroll}
-                resetAutoScroll={resetAutoScroll}
-                song={song}
-                transposeSteps={transposeSteps}
-                capo={capo}
-                useFlats={useFlats}
-                setTransposeSteps={setTransposeSteps}
-                setCapo={setCapo}
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-                hasTabs={hasTabs}
-                allTabsHidden={allTabsHidden}
-                toggleAllTabs={toggleAllTabs}
-                chordZoom={chordZoom}
-                setChordZoom={setChordZoom}
-                lyricZoom={lyricZoom}
-                setLyricZoom={setLyricZoom}
-                notes={notes}
-                setNotes={setNotes}
-                notesOpen={notesOpen}
-                setNotesOpen={setNotesOpen}
-              />
+          </div>
+
+          {/* Item 2 — Vista */}
+          <div
+            className="flex items-center gap-2"
+            style={{
+              opacity: fabOpen ? 1 : 0,
+              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transition: 'opacity 150ms ease, transform 150ms ease',
+              transitionDelay: fabOpen ? '50ms' : '0ms',
+              pointerEvents: fabOpen ? 'auto' : 'none',
+            }}
+          >
+            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              {VIEW_MODE_LABELS[viewMode]}
+            </span>
+            <button
+              type="button"
+              aria-label={`Cambiar vista (ahora: ${VIEW_MODE_LABELS[viewMode]})`}
+              onClick={() => setViewMode(nextViewMode(viewMode))}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-md hover:bg-[var(--bg-elevated)] transition-colors"
+            >
+              {(() => { const Icon = VIEW_MODE_ICONS[viewMode]; return <Icon size={20} strokeWidth={ICON_STROKE} aria-hidden />; })()}
+            </button>
+          </div>
+
+          {/* Item 3 — Escenario */}
+          <div
+            className="flex items-center gap-2"
+            style={{
+              opacity: fabOpen ? 1 : 0,
+              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transition: 'opacity 150ms ease, transform 150ms ease',
+              transitionDelay: fabOpen ? '100ms' : '0ms',
+              pointerEvents: fabOpen ? 'auto' : 'none',
+            }}
+          >
+            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              Escenario
+            </span>
+            <button
+              type="button"
+              aria-label="Activar modo escenario"
+              onClick={() => { setStageMode(true); setFabOpen(false); }}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-md hover:bg-[var(--bg-elevated)] transition-colors"
+            >
+              <Maximize2 size={20} strokeWidth={ICON_STROKE} aria-hidden />
+            </button>
+          </div>
+
+          {/* Item 4 — Zoom */}
+          <div
+            className="flex items-center gap-2"
+            style={{
+              opacity: fabOpen ? 1 : 0,
+              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transition: 'opacity 150ms ease, transform 150ms ease',
+              transitionDelay: fabOpen ? '150ms' : '0ms',
+              pointerEvents: fabOpen ? 'auto' : 'none',
+            }}
+          >
+            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              Zoom
+            </span>
+            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)] shadow-md">
+              <button
+                type="button"
+                aria-label="Reducir tamaño de texto"
+                onClick={() => {
+                  const v = parseFloat(Math.max(0.7, chordZoom - 0.1).toFixed(1));
+                  setChordZoom(v);
+                  setLyricZoom(v);
+                }}
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold"
+              >
+                A<span className="text-[8px]">−</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Restablecer tamaño de texto"
+                onClick={() => { setChordZoom(1); setLyricZoom(1); }}
+                className="min-w-[2.75rem] px-1 text-center text-sm font-semibold tabular-nums text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors"
+              >
+                {chordZoom.toFixed(1)}×
+              </button>
+              <button
+                type="button"
+                aria-label="Aumentar tamaño de texto"
+                onClick={() => {
+                  const v = parseFloat(Math.min(2, chordZoom + 0.1).toFixed(1));
+                  setChordZoom(v);
+                  setLyricZoom(v);
+                }}
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold"
+              >
+                A<span className="text-[10px]">+</span>
+              </button>
             </div>
           </div>
-        </>
+
+          {/* Main FAB */}
+          <button
+            type="button"
+            title={fabOpen ? 'Cerrar opciones' : 'Opciones (tono, vista, zoom…)'}
+            aria-label={fabOpen ? 'Cerrar panel de opciones' : 'Abrir panel de opciones'}
+            aria-expanded={fabOpen}
+            onClick={() => setFabOpen((o) => !o)}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-xl transition-transform active:scale-95"
+            style={{ transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }}
+          >
+            {fabOpen
+              ? <Plus size={24} strokeWidth={ICON_STROKE} aria-hidden />
+              : <SlidersHorizontal size={22} strokeWidth={ICON_STROKE} aria-hidden />
+            }
+          </button>
+        </div>
       )}
 
       {!editMode && (
