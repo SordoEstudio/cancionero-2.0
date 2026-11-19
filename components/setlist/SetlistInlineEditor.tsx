@@ -415,6 +415,23 @@ export function SetlistInlineEditor({
 
       {expanded ? (
         <div className="border-t border-[var(--border)] bg-[var(--bg-elevated)]/35 px-2 py-3">
+          {editing ? (
+            <div className="mb-3 px-1">
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                rows={2}
+                placeholder="Descripción (opcional)…"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-none"
+              />
+            </div>
+          ) : setlist.description ? (
+            <p className="mb-3 px-1 text-xs text-[var(--text-secondary)] leading-relaxed">
+              {setlist.description}
+            </p>
+          ) : null}
           {songsLoading ? (
             <p className="px-1 text-xs text-[var(--text-muted)]">Cargando…</p>
           ) : !songsReady ? (

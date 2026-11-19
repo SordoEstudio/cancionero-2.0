@@ -226,11 +226,19 @@ export interface SetlistSongItem {
   original_key: string | null;
 }
 
+export interface SetlistNavSong {
+  songId: string;
+  versionId: string | null;
+  title: string;
+  artist: string;
+}
+
 export interface SetlistNavContext {
   setlistId: string;
   setlistName: string;
   position: number;
   total: number;
-  prevSong: { songId: string; versionId: string | null } | null;
-  nextSong: { songId: string; versionId: string | null } | null;
+  songs: SetlistNavSong[];
+  prevSong: SetlistNavSong | null;
+  nextSong: SetlistNavSong | null;
 }

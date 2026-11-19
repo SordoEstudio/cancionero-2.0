@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getAppBaseUrl } from '@/lib/app-url';
 import { SongEditor } from '@/components/song/SongEditor';
-import type { FullSong, SongSectionWithLines, SongVersionActive, SetlistNavContext } from '@/types';
+import type { FullSong, SongSectionWithLines, SongVersionActive, SetlistNavContext, SetlistNavSong } from '@/types';
 
 const VERSION_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -28,7 +28,7 @@ async function fetchSetlistPayload(
   cookieHeader: string
 ): Promise<{
   setlist: { name: string };
-  songs: Array<{ song_id: string; version_id: string | null; position: number }>;
+  songs: Array<{ song_id: string; version_id: string | null; position: number; song_title: string; song_artist: string }>;
 } | null> {
   try {
     const res = await fetch(`${getAppBaseUrl()}/api/setlists/${setlistId}`, {
@@ -91,15 +91,20 @@ export default async function SongPage({ params, searchParams }: PageProps) {
     const sorted = [...setlistPayload.songs].sort((a, b) => a.position - b.position);
     const total = sorted.length;
     if (pos >= 0 && pos < total) {
-      const prevEntry = pos > 0 ? sorted[pos - 1] : undefined;
-      const nextEntry = pos < total - 1 ? sorted[pos + 1] : undefined;
+      const toNavSong = (e: typeof sorted[number]): SetlistNavSong => ({
+        songId: e.song_id,
+        versionId: e.version_id,
+        title: e.song_title,
+        artist: e.song_artist,
+      });
       setlistContext = {
         setlistId,
         setlistName: setlistPayload.setlist.name,
         position: pos,
         total,
-        prevSong: prevEntry ? { songId: prevEntry.song_id, versionId: prevEntry.version_id } : null,
-        nextSong: nextEntry ? { songId: nextEntry.song_id, versionId: nextEntry.version_id } : null,
+        songs: sorted.map(toNavSong),
+        prevSong: pos > 0 ? toNavSong(sorted[pos - 1]!) : null,
+        nextSong: pos < total - 1 ? toNavSong(sorted[pos + 1]!) : null,
       };
     }
   }

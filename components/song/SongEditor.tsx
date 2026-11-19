@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
+  List,
   Maximize2,
   Menu,
   Minimize2,
@@ -35,6 +36,7 @@ import {
   Play,
   Plus,
   SquarePen,
+  X,
 } from 'lucide-react';
 import { ICON_INLINE, ICON_STROKE } from '@/components/ui/icon-tokens';
 import { IconButton, lucideInIconButton } from '@/components/ui/IconButton';
@@ -189,6 +191,7 @@ export function SongEditor({
     return parseFloat(localStorage.getItem('lyric-zoom') ?? '1');
   });
   const [stageMode, setStageMode] = useState(() => !!setlistContext);
+  const [setlistOpen, setSetlistOpen] = useState(false);
   const [notes, setNotes] = useState(activeVersion?.notes ?? '');
   const [notesOpen, setNotesOpen] = useState(() => !!(activeVersion?.notes));
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -1163,6 +1166,17 @@ export function SongEditor({
                   <ChevronRight size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
                 </button>
               )}
+              <button
+                type="button"
+                className={setlistOpen
+                  ? `${floatBtnClass} border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]`
+                  : floatBtnClass}
+                title="Ver lista del setlist"
+                aria-label="Ver lista completa del setlist"
+                onClick={() => setSetlistOpen((o) => !o)}
+              >
+                <List size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              </button>
             </>
           )}
           <button
@@ -1190,6 +1204,55 @@ export function SongEditor({
               : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
             }
           </button>
+        </div>
+      )}
+
+      {stageMode && setlistOpen && setlistContext && (
+        <div className="fixed inset-0 z-[170] flex flex-col" role="dialog" aria-modal aria-label="Lista del setlist">
+          <div className="flex-1" onClick={() => setSetlistOpen(false)} />
+          <div className="bg-[var(--bg-surface)] border-t border-[var(--border)] rounded-t-2xl max-h-[65vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+              <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{setlistContext.setlistName}</span>
+              <button
+                type="button"
+                onClick={() => setSetlistOpen(false)}
+                className="shrink-0 ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                aria-label="Cerrar lista"
+              >
+                <X size={ICON_INLINE} strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+            </div>
+            <ul className="overflow-y-auto py-2">
+              {setlistContext.songs.map((s, i) => {
+                const isCurrent = i === setlistContext.position;
+                return (
+                  <li key={s.songId}>
+                    <button
+                      type="button"
+                      className={[
+                        'w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors',
+                        isCurrent
+                          ? 'bg-[var(--accent-muted)] text-[var(--accent)]'
+                          : 'hover:bg-[var(--bg-elevated)] text-[var(--text-primary)]',
+                      ].join(' ')}
+                      onClick={() => { setSetlistOpen(false); navigateToSong(s.songId, s.versionId, i); }}
+                    >
+                      <span className={`w-5 shrink-0 text-xs font-semibold tabular-nums ${isCurrent ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{s.title || 'Sin título'}</span>
+                        {s.artist && <span className="block truncate text-xs text-[var(--text-secondary)]">{s.artist}</span>}
+                      </span>
+                      {isCurrent && (
+                        <ChevronRight size={14} strokeWidth={ICON_STROKE} className="shrink-0 text-[var(--accent)]" aria-hidden />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       )}
 
