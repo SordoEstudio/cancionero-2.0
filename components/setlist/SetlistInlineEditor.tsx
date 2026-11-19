@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, GripVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Check, GripVertical, Pencil, Play, Plus, Search, Trash2, X } from 'lucide-react';
 import { ICON_INLINE, ICON_STROKE } from '@/components/ui/icon-tokens';
 import type { SetlistItem, SetlistSongItem } from '@/types';
 
@@ -36,6 +37,7 @@ export function SetlistInlineEditor({
   onSetlistMetaChange: (name: string, description: string) => void;
   onReloadAll: () => Promise<void>;
 }) {
+  const router = useRouter();
   const [songs, setSongs] = useState<SetlistSongItem[]>(initialSongs);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(setlist.name);
@@ -197,6 +199,24 @@ export function SetlistInlineEditor({
     }
   }
 
+  async function playSetlist() {
+    let toPlay = sortedSongs;
+    if (!songsReady || toPlay.length === 0) {
+      try {
+        const res = await fetch(`/api/setlists/${setlist.id}`, { credentials: 'include' });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.songs)) {
+          toPlay = [...(data.songs as SetlistSongItem[])].sort((a, b) => a.position - b.position);
+        }
+      } catch { return; }
+    }
+    if (!toPlay.length) return;
+    const first = toPlay[0]!;
+    const params = new URLSearchParams({ setlistId: setlist.id, pos: '0' });
+    if (first.version_id) params.set('v', first.version_id);
+    router.push(`/song/${first.song_id}?${params.toString()}`);
+  }
+
   function cancelMetaEdit() {
     setEditing(false);
     setEditName(setlist.name);
@@ -233,7 +253,8 @@ export function SetlistInlineEditor({
 
   const showBrowseStrip = expanded && songsReady && !editing;
   const showMetaSaveStrip = expanded && songsReady && editing;
-  const headerRoundedRight = !showBrowseStrip && !showMetaSaveStrip;
+  const showPlayButton = !editing && setlist.song_count > 0;
+  const headerRoundedRight = !showBrowseStrip && !showMetaSaveStrip && !showPlayButton;
 
   const countLabel = songsReady
     ? `${sortedSongs.length} ${sortedSongs.length === 1 ? 'canción' : 'canciones'}`
@@ -287,6 +308,22 @@ export function SetlistInlineEditor({
             </>
           )}
         </div>
+
+        {showPlayButton && (
+          <button
+            type="button"
+            title="Tocar setlist"
+            aria-label={`Tocar setlist ${setlist.name}`}
+            onClick={(e) => { e.stopPropagation(); void playSetlist(); }}
+            className={[
+              stripBtnClass,
+              !showBrowseStrip && !showMetaSaveStrip ? 'rounded-r-xl' : '',
+              'text-[var(--accent)] hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]',
+            ].join(' ')}
+          >
+            <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+          </button>
+        )}
 
         {showBrowseStrip ? (
           <>
