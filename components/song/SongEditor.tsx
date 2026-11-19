@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MiniToast, type MiniToastKind } from '@/components/ui/MiniToast';
 import { useRouter } from 'next/navigation';
-import type { ChordToken, FullSong, SectionType, SongSectionWithLines, SongVersionActive, ViewMode } from '@/types';
+import type { ChordToken, FullSong, SectionType, SetlistNavContext, SongSectionWithLines, SongVersionActive, ViewMode } from '@/types';
 import { preferFlats, transposeChord } from '@/lib/transpose';
 import { buildVersionOverrides } from '@/lib/version-overrides';
 import { sectionsSnapshot } from '@/lib/sections-snapshot';
@@ -21,6 +21,8 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Home,
   Maximize2,
   Menu,
@@ -50,6 +52,7 @@ interface SongEditorProps {
   displaySections?: SongSectionWithLines[];
   activeVersion?: SongVersionActive;
   variantKey: string;
+  setlistContext?: SetlistNavContext;
 }
 
 type PrefsBaseline = {
@@ -124,6 +127,7 @@ export function SongEditor({
   displaySections,
   activeVersion,
   variantKey,
+  setlistContext,
 }: SongEditorProps) {
   const router = useRouter();
   const topNavHidden = useTopNavHidden();
@@ -180,7 +184,7 @@ export function SongEditor({
     if (typeof window === 'undefined') return 1;
     return parseFloat(localStorage.getItem('lyric-zoom') ?? '1');
   });
-  const [stageMode, setStageMode] = useState(false);
+  const [stageMode, setStageMode] = useState(() => !!setlistContext);
   const [notes, setNotes] = useState(activeVersion?.notes ?? '');
   const [notesOpen, setNotesOpen] = useState(() => !!(activeVersion?.notes));
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -745,6 +749,13 @@ export function SongEditor({
     openVersionNameDialog('new');
   }
 
+  function navigateToSong(songId: string, versionId: string | null, newPos: number) {
+    if (!setlistContext) return;
+    const params = new URLSearchParams({ setlistId: setlistContext.setlistId, pos: String(newPos) });
+    if (versionId) params.set('v', versionId);
+    router.push(`/song/${songId}?${params.toString()}`);
+  }
+
   async function handleSavePrimary() {
     if (!isDirty) return;
     if (activeVersion?.id) {
@@ -1105,6 +1116,47 @@ export function SongEditor({
 
       {stageMode && (
         <div className="fixed right-4 top-4 z-[160] flex items-center gap-2">
+          {setlistContext && (
+            <>
+              {setlistContext.prevSong && (
+                <button
+                  type="button"
+                  className={floatBtnClass}
+                  title="Canción anterior"
+                  aria-label="Canción anterior del setlist"
+                  onClick={() =>
+                    navigateToSong(
+                      setlistContext.prevSong!.songId,
+                      setlistContext.prevSong!.versionId,
+                      setlistContext.position - 1
+                    )
+                  }
+                >
+                  <ChevronLeft size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+                </button>
+              )}
+              <span className="rounded-full bg-[var(--bg-elevated)]/90 px-3 py-1 text-xs font-semibold tabular-nums text-[var(--text-secondary)] border border-[var(--border)]">
+                {setlistContext.position + 1} / {setlistContext.total}
+              </span>
+              {setlistContext.nextSong && (
+                <button
+                  type="button"
+                  className={floatBtnClass}
+                  title="Siguiente canción"
+                  aria-label="Siguiente canción del setlist"
+                  onClick={() =>
+                    navigateToSong(
+                      setlistContext.nextSong!.songId,
+                      setlistContext.nextSong!.versionId,
+                      setlistContext.position + 1
+                    )
+                  }
+                >
+                  <ChevronRight size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+                </button>
+              )}
+            </>
+          )}
           <button
             type="button"
             className={floatBtnClass}
