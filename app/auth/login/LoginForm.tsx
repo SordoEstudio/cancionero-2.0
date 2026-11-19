@@ -22,6 +22,9 @@ export function LoginForm() {
   const [magicError, setMagicError] = useState<string | null>(null);
   const [magicMessage, setMagicMessage] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -86,6 +89,26 @@ export function LoginForm() {
       setMagicError(authError.message);
     } else {
       setMagicMessage('Revisá tu email — te enviamos un link para ingresar.');
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setResetError(null);
+    setResetMessage(null);
+    if (!email.trim()) {
+      setResetError('Ingresá tu email arriba');
+      return;
+    }
+    setResetLoading(true);
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
+    });
+    setResetLoading(false);
+    if (authError) {
+      setResetError(authError.message);
+    } else {
+      setResetMessage('Revisá tu email — te enviamos un link para restablecer la contraseña.');
     }
   }
 
@@ -169,6 +192,18 @@ export function LoginForm() {
           autoComplete="current-password"
           disabled={passwordLoading}
         />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleResetPassword}
+            disabled={resetLoading}
+            className="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
+          >
+            {resetLoading ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
+          </button>
+        </div>
+        {resetError && <p className="text-xs text-[var(--danger)]">{resetError}</p>}
+        {resetMessage && <p className="text-xs text-[var(--success)]">{resetMessage}</p>}
         <Button type="submit" loading={passwordLoading} size="lg" className="w-full">
           Ingresar
         </Button>
