@@ -35,6 +35,7 @@ import {
   Pencil,
   Play,
   Plus,
+  SlidersHorizontal,
   SquarePen,
   X,
 } from 'lucide-react';
@@ -128,6 +129,197 @@ function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max) + '…';
 }
 
+interface PanelSectionsProps {
+  editMode: boolean;
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+  scrollSpeed: number;
+  setScrollSpeed: (v: number) => void;
+  scrollPlaying: boolean;
+  toggleAutoScroll: () => void;
+  resetAutoScroll: () => void;
+  song: FullSong;
+  transposeSteps: number;
+  capo: number;
+  useFlats: boolean;
+  setTransposeSteps: (v: number) => void;
+  setCapo: (v: number) => void;
+  viewMode: ViewMode;
+  setViewMode: (v: ViewMode) => void;
+  hasTabs: boolean;
+  allTabsHidden: boolean;
+  toggleAllTabs: () => void;
+  chordZoom: number;
+  setChordZoom: (v: number) => void;
+  lyricZoom: number;
+  setLyricZoom: (v: number) => void;
+  notes: string;
+  setNotes: (v: string) => void;
+  notesOpen: boolean;
+  setNotesOpen: (fn: (o: boolean) => boolean) => void;
+}
+
+function PanelSections({
+  editMode, openSections, toggleSection,
+  scrollSpeed, setScrollSpeed, scrollPlaying, toggleAutoScroll, resetAutoScroll,
+  song, transposeSteps, capo, useFlats, setTransposeSteps, setCapo,
+  viewMode, setViewMode, hasTabs, allTabsHidden, toggleAllTabs,
+  chordZoom, setChordZoom, lyricZoom, setLyricZoom,
+  notes, setNotes, notesOpen, setNotesOpen,
+}: PanelSectionsProps) {
+  return (
+    <>
+      {!editMode && (
+        <div className="border-b border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => toggleSection('scroll')}
+            className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            Scroll automático
+            <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.scroll ? '' : '-rotate-90'}`} aria-hidden />
+          </button>
+          {openSections.scroll && (
+            <div className="px-3 pb-3">
+              <ScrollControl
+                speed={scrollSpeed}
+                onSpeedChange={setScrollSpeed}
+                playing={scrollPlaying}
+                onTogglePlay={toggleAutoScroll}
+                onReset={resetAutoScroll}
+                hideTitle
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="border-b border-[var(--border)]">
+        <button
+          type="button"
+          onClick={() => toggleSection('tone')}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          Tono
+          <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.tone ? '' : '-rotate-90'}`} aria-hidden />
+        </button>
+        {openSections.tone && (
+          <div className="px-3 pb-3">
+            <ToneSelector
+              originalKey={song.original_key}
+              transposeSteps={transposeSteps}
+              capo={capo}
+              useFlats={useFlats}
+              onTransposeChange={setTransposeSteps}
+              onCapoChange={setCapo}
+              hideTitle
+            />
+          </div>
+        )}
+      </div>
+
+      {!editMode && (
+        <div className="border-b border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => toggleSection('view')}
+            className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            Vista
+            <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.view ? '' : '-rotate-90'}`} aria-hidden />
+          </button>
+          {openSections.view && (
+            <div className="px-3 pb-3">
+              <ViewModeSwitch
+                value={viewMode}
+                onChange={setViewMode}
+                hasTabs={hasTabs}
+                allTabsHidden={allTabsHidden}
+                onToggleTabs={toggleAllTabs}
+                hideTitle
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="border-b border-[var(--border)]">
+        <button
+          type="button"
+          onClick={() => toggleSection('zoom')}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          Tamaño de texto
+          <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.zoom ? '' : '-rotate-90'}`} aria-hidden />
+        </button>
+        {openSections.zoom && (
+          <div className="space-y-2 px-3 pb-3">
+            <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+              <span className="shrink-0">Acordes</span>
+              <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
+                <input
+                  type="range" min="0.7" max="2" step="0.1" value={chordZoom}
+                  onChange={(e) => setChordZoom(parseFloat(e.target.value))}
+                  className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
+                />
+                <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{chordZoom.toFixed(1)}</span>
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+              <span className="shrink-0">Letra</span>
+              <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
+                <input
+                  type="range" min="0.7" max="2" step="0.1" value={lyricZoom}
+                  onChange={(e) => setLyricZoom(parseFloat(e.target.value))}
+                  className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
+                />
+                <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{lyricZoom.toFixed(1)}</span>
+              </span>
+            </label>
+            {(chordZoom !== 1 || lyricZoom !== 1) && (
+              <button type="button" onClick={() => { setChordZoom(1); setLyricZoom(1); }} className="text-[10px] text-[var(--accent)] hover:underline">
+                Restablecer tamaño
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-b border-[var(--border)]">
+        <button
+          type="button"
+          onClick={() => setNotesOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          Notas
+          <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${notesOpen ? '' : '-rotate-90'}`} aria-hidden />
+        </button>
+        {notesOpen && (
+          <div className="px-3 pb-3">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Apuntes, ideas, recordatorios…"
+              rows={3}
+              className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              style={{ minHeight: '3rem' }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="px-3 py-3 text-xs text-[var(--text-muted)] space-y-1">
+        {song.original_key && (
+          <p>Tono original: <span className="font-mono text-[var(--chord-color)]">{song.original_key}</span></p>
+        )}
+        <a href={song.source_url} target="_blank" rel="noopener noreferrer" className="block hover:text-[var(--accent)] underline truncate">
+          Ver fuente original
+        </a>
+      </div>
+    </>
+  );
+}
+
 export function SongEditor({
   song,
   displaySections,
@@ -167,6 +359,7 @@ export function SongEditor({
     title?: string;
   } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const songHeaderRef = useRef<HTMLElement>(null);
   const [songHeaderInView, setSongHeaderInView] = useState(true);
 
@@ -1368,174 +1561,116 @@ export function SongEditor({
         </main>
 
         {panelOpen && !stageMode && (
-          <>
-            {/* Mobile backdrop — closes panel when tapping outside */}
-            <div
-              className="md:hidden fixed inset-0 z-[99]"
-              onClick={() => setPanelOpen(false)}
-            />
           <aside
             aria-label="Tono, scroll automático, vista y tamaño de texto"
-            className={[
-              'shrink-0 border-[var(--border)] bg-[var(--bg-surface)]',
-              'fixed bottom-0 left-0 right-0 z-[100]',
-              'border-t rounded-t-2xl shadow-xl',
-              'max-h-[70svh] overflow-y-auto overscroll-y-contain',
-              'md:w-64 md:border-l md:border-t-0 md:rounded-none md:shadow-none',
-              'md:max-h-none md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:overflow-y-auto md:overscroll-y-contain',
-            ].join(' ')}
+            className="hidden md:block w-64 shrink-0 border-l border-[var(--border)] bg-[var(--bg-surface)] sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto overscroll-y-contain"
           >
-            {!editMode && (
-              <div className="border-b border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('scroll')}
-                  className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  Scroll automático
-                  <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.scroll ? '' : '-rotate-90'}`} aria-hidden />
-                </button>
-                {openSections.scroll && (
-                  <div className="px-3 pb-3">
-                    <ScrollControl
-                      speed={scrollSpeed}
-                      onSpeedChange={setScrollSpeed}
-                      playing={scrollPlaying}
-                      onTogglePlay={toggleAutoScroll}
-                      onReset={resetAutoScroll}
-                      hideTitle
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="border-b border-[var(--border)]">
-              <button
-                type="button"
-                onClick={() => toggleSection('tone')}
-                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                Tono
-                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.tone ? '' : '-rotate-90'}`} aria-hidden />
-              </button>
-              {openSections.tone && (
-                <div className="px-3 pb-3">
-                  <ToneSelector
-                    originalKey={song.original_key}
-                    transposeSteps={transposeSteps}
-                    capo={capo}
-                    useFlats={useFlats}
-                    onTransposeChange={setTransposeSteps}
-                    onCapoChange={setCapo}
-                    hideTitle
-                  />
-                </div>
-              )}
-            </div>
-
-            {!editMode && (
-              <div className="border-b border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('view')}
-                  className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  Vista
-                  <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.view ? '' : '-rotate-90'}`} aria-hidden />
-                </button>
-                {openSections.view && (
-                  <div className="px-3 pb-3">
-                    <ViewModeSwitch
-                      value={viewMode}
-                      onChange={setViewMode}
-                      hasTabs={hasTabs}
-                      allTabsHidden={allTabsHidden}
-                      onToggleTabs={toggleAllTabs}
-                      hideTitle
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="border-b border-[var(--border)]">
-              <button
-                type="button"
-                onClick={() => toggleSection('zoom')}
-                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                Tamaño de texto
-                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${openSections.zoom ? '' : '-rotate-90'}`} aria-hidden />
-              </button>
-              {openSections.zoom && (
-                <div className="space-y-2 px-3 pb-3">
-                  <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                    <span className="shrink-0">Acordes</span>
-                    <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
-                      <input
-                        type="range" min="0.7" max="2" step="0.1" value={chordZoom}
-                        onChange={(e) => setChordZoom(parseFloat(e.target.value))}
-                        className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
-                      />
-                      <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{chordZoom.toFixed(1)}</span>
-                    </span>
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-xs text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                    <span className="shrink-0">Letra</span>
-                    <span className="flex min-h-[2.25rem] min-w-0 flex-1 items-center gap-2 sm:max-w-[9.5rem]">
-                      <input
-                        type="range" min="0.7" max="2" step="0.1" value={lyricZoom}
-                        onChange={(e) => setLyricZoom(parseFloat(e.target.value))}
-                        className="h-2 min-w-0 w-full flex-1 cursor-pointer accent-[var(--accent)]"
-                      />
-                      <span className="w-8 shrink-0 text-right font-mono text-[10px] tabular-nums">{lyricZoom.toFixed(1)}</span>
-                    </span>
-                  </label>
-                  {(chordZoom !== 1 || lyricZoom !== 1) && (
-                    <button type="button" onClick={() => { setChordZoom(1); setLyricZoom(1); }} className="text-[10px] text-[var(--accent)] hover:underline">
-                      Restablecer tamaño
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="border-b border-[var(--border)]">
-              <button
-                type="button"
-                onClick={() => setNotesOpen((o) => !o)}
-                className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                Notas
-                <ChevronDown size={12} strokeWidth={ICON_STROKE} className={`shrink-0 transition-transform ${notesOpen ? '' : '-rotate-90'}`} aria-hidden />
-              </button>
-              {notesOpen && (
-                <div className="px-3 pb-3">
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Apuntes, ideas, recordatorios…"
-                    rows={3}
-                    className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                    style={{ minHeight: '3rem' }}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="px-3 py-3 text-xs text-[var(--text-muted)] space-y-1">
-              {song.original_key && (
-                <p>Tono original: <span className="font-mono text-[var(--chord-color)]">{song.original_key}</span></p>
-              )}
-              <a href={song.source_url} target="_blank" rel="noopener noreferrer" className="block hover:text-[var(--accent)] underline truncate">
-                Ver fuente original
-              </a>
-            </div>
+            <PanelSections
+              editMode={editMode}
+              openSections={openSections}
+              toggleSection={toggleSection}
+              scrollSpeed={scrollSpeed}
+              setScrollSpeed={setScrollSpeed}
+              scrollPlaying={scrollPlaying}
+              toggleAutoScroll={toggleAutoScroll}
+              resetAutoScroll={resetAutoScroll}
+              song={song}
+              transposeSteps={transposeSteps}
+              capo={capo}
+              useFlats={useFlats}
+              setTransposeSteps={setTransposeSteps}
+              setCapo={setCapo}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              hasTabs={hasTabs}
+              allTabsHidden={allTabsHidden}
+              toggleAllTabs={toggleAllTabs}
+              chordZoom={chordZoom}
+              setChordZoom={setChordZoom}
+              lyricZoom={lyricZoom}
+              setLyricZoom={setLyricZoom}
+              notes={notes}
+              setNotes={setNotes}
+              notesOpen={notesOpen}
+              setNotesOpen={setNotesOpen}
+            />
           </aside>
-          </>
         )}
       </div>
+
+      {/* Mobile FAB — opens tool panel as bottom sheet */}
+      {!stageMode && !editMode && (
+        <button
+          type="button"
+          title="Opciones (tono, scroll, vista…)"
+          aria-label="Abrir panel de opciones"
+          onClick={() => setMobilePanelOpen(true)}
+          className="md:hidden fixed bottom-20 right-4 z-[110] flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-xl hover:opacity-90 active:scale-95 transition-transform"
+        >
+          <SlidersHorizontal size={22} strokeWidth={ICON_STROKE} aria-hidden />
+        </button>
+      )}
+
+      {/* Mobile bottom sheet */}
+      {mobilePanelOpen && !stageMode && (
+        <>
+          <div
+            className="md:hidden fixed inset-0 z-[119] bg-black/30"
+            onClick={() => setMobilePanelOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal
+            aria-label="Opciones de canción"
+            className="md:hidden fixed bottom-0 left-0 right-0 z-[120] flex flex-col rounded-t-2xl bg-[var(--bg-surface)] border-t border-[var(--border)] shadow-2xl max-h-[80svh]"
+          >
+            {/* Handle + header */}
+            <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-2 border-b border-[var(--border)]">
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--border)] absolute top-2 left-1/2 -translate-x-1/2" />
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Opciones</span>
+              <button
+                type="button"
+                onClick={() => setMobilePanelOpen(false)}
+                aria-label="Cerrar panel"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                <X size={ICON_INLINE} strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+            </div>
+            <div className="overflow-y-auto overscroll-y-contain">
+              <PanelSections
+                editMode={editMode}
+                openSections={openSections}
+                toggleSection={toggleSection}
+                scrollSpeed={scrollSpeed}
+                setScrollSpeed={setScrollSpeed}
+                scrollPlaying={scrollPlaying}
+                toggleAutoScroll={toggleAutoScroll}
+                resetAutoScroll={resetAutoScroll}
+                song={song}
+                transposeSteps={transposeSteps}
+                capo={capo}
+                useFlats={useFlats}
+                setTransposeSteps={setTransposeSteps}
+                setCapo={setCapo}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+                hasTabs={hasTabs}
+                allTabsHidden={allTabsHidden}
+                toggleAllTabs={toggleAllTabs}
+                chordZoom={chordZoom}
+                setChordZoom={setChordZoom}
+                lyricZoom={lyricZoom}
+                setLyricZoom={setLyricZoom}
+                notes={notes}
+                setNotes={setNotes}
+                notesOpen={notesOpen}
+                setNotesOpen={setNotesOpen}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {!editMode && (
         <div
