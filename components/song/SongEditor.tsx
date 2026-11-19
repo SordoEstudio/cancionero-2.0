@@ -122,6 +122,10 @@ function duplicateVersionDefaultLabel(
   return `${activeVersion?.name ?? song.title} (copia)`;
 }
 
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max) + '…';
+}
+
 export function SongEditor({
   song,
   displaySections,
@@ -951,12 +955,14 @@ export function SongEditor({
                     !isDirty
                       ? 'No hay cambios para guardar'
                       : activeVersion?.id
-                        ? 'Guardar en la versión actual'
-                        : 'Crear la primera versión'
+                        ? `Guardar en «${activeVersion.name}»`
+                        : 'Crear primera versión con nombre'
                   }
                   onClick={() => void handleSavePrimary()}
                 >
-                  Guardar
+                  {activeVersion?.id
+                    ? `Guardar «${truncate(activeVersion.name, 18)}»`
+                    : 'Guardar como…'}
                 </Button>
                 {activeVersion?.id ? (
                   <Button
@@ -1057,7 +1063,9 @@ export function SongEditor({
                       disabled={!isDirty || saving}
                       onSelect={() => void handleSavePrimary()}
                     >
-                      Guardar
+                      {activeVersion?.id
+                        ? `Guardar «${truncate(activeVersion.name, 18)}»`
+                        : 'Guardar como…'}
                     </DropdownMenu.Item>
                     {activeVersion?.id ? (
                       <DropdownMenu.Item
@@ -1187,7 +1195,7 @@ export function SongEditor({
 
       {editMode && (
         <p className="mx-4 mt-2 text-xs text-[var(--text-muted)]">
-          Editá acordes y letra. Los acordes se confirman al salir del campo (Tab o clic fuera). Usá Guardar para la versión actual o Guardar nueva versión para crear otra entrada.
+          Editá acordes y letra. «Guardar como…» crea una versión con nombre. «Guardar nueva versión» crea otra a partir de la actual.
         </p>
       )}
 
