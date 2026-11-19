@@ -683,7 +683,6 @@ export function SongEditor({
       prefs: nextPrefs,
     });
     setEditMode(false);
-    setStageMode(false);
     setCopiedChordPattern(null);
     setDeletedSectionIds(new Set(activeVersion?.hidden_sections ?? []));
     setDeletedLineIds(new Set(activeVersion?.hidden_lines ?? []));
