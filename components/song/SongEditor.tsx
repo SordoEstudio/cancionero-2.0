@@ -192,6 +192,11 @@ export function SongEditor({
   });
   const [stageMode, setStageMode] = useState(() => !!setlistContext);
   const [setlistOpen, setSetlistOpen] = useState(false);
+  // Ensure stage mode activates even if hydration ran before setlistContext arrived
+  useEffect(() => {
+    if (setlistContext?.setlistId) setStageMode(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setlistContext?.setlistId]);
   const [notes, setNotes] = useState(activeVersion?.notes ?? '');
   const [notesOpen, setNotesOpen] = useState(() => !!(activeVersion?.notes));
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
