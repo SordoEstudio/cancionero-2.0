@@ -225,3 +225,12 @@ export interface SetlistSongItem {
   song_artist: string;
   original_key: string | null;
 }
+
+export interface SetlistNavContext {
+  setlistId: string;
+  setlistName: string;
+  position: number;
+  total: number;
+  prevSong: { songId: string; versionId: string | null } | null;
+  nextSong: { songId: string; versionId: string | null } | null;
+}
