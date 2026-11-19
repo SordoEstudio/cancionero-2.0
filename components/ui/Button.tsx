@@ -41,7 +41,7 @@ export function Button({
       {...props}
       disabled={disabled || loading}
       className={[
-        'inline-flex items-center gap-2 rounded-lg border font-medium',
+        'inline-flex items-center gap-2 rounded-full border font-medium',
         'transition-colors duration-150 focus:outline-none focus:ring-2',
         'focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--bg-base)]',
         'disabled:opacity-50 disabled:cursor-not-allowed',

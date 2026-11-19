@@ -66,7 +66,6 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [homeTab, setHomeTab] = useState<'import' | 'library' | 'setlists'>('library');
-  const [librarySearchOpen, setLibrarySearchOpen] = useState(false);
   const [deletingSongId, setDeletingSongId] = useState<string | null>(null);
   const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null);
   const [tagDropdownSongId, setTagDropdownSongId] = useState<string | null>(null);
@@ -77,7 +76,6 @@ export default function HomePage() {
   const [setlistSongsById, setSetlistSongsById] = useState<Record<string, SetlistSongItem[]>>({});
   const [setlistSongsLoadingId, setSetlistSongsLoadingId] = useState<string | null>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
-  const librarySearchInputRef = useRef<HTMLInputElement>(null);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const loadLibrary = useCallback(async () => {
@@ -152,9 +150,6 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [tagDropdownSongId]);
 
-  useEffect(() => {
-    if (searchQuery.trim()) setLibrarySearchOpen(true);
-  }, [searchQuery]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   async function pasteUrlFromClipboard() {
@@ -699,92 +694,83 @@ export default function HomePage() {
 
       {homeTab === 'library' && (
       <>
-      {!needLogin && songs.length > 0 && (
-        <div className="mb-3 flex min-h-[2.25rem] flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
-          <button
-            type="button"
-            onClick={() => {
-              setLibrarySearchOpen((prev) => {
-                const next = !prev;
-                if (next) {
-                  queueMicrotask(() => librarySearchInputRef.current?.focus());
-                }
-                return next;
-              });
-            }}
-            aria-expanded={librarySearchOpen}
-            aria-label={librarySearchOpen ? 'Ocultar campo de búsqueda' : 'Mostrar búsqueda'}
-            title={librarySearchOpen ? 'Ocultar búsqueda' : 'Buscar'}
-            className={[
-              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors',
-              librarySearchOpen
-                ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]'
-                : 'border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
-            ].join(' ')}
-          >
-            <Search size={ICON_INLINE} strokeWidth={ICON_STROKE} aria-hidden />
-          </button>
-          <div
-            className={[
-              'shrink-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-out',
-              librarySearchOpen ? 'max-w-[min(16rem,42vw)] opacity-100' : 'max-w-0 opacity-0',
-            ].join(' ')}
-          >
+      {!needLogin && (
+        <div className="mb-3 flex flex-col gap-2">
+          <div className="relative">
+            <Search
+              size={ICON_INLINE}
+              strokeWidth={ICON_STROKE}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+              aria-hidden
+            />
             <input
-              ref={librarySearchInputRef}
               type="text"
-              placeholder="Buscar…"
+              placeholder="Buscar canciones…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 w-[min(16rem,42vw)] rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--bg-surface)] pl-9 pr-9 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                aria-label="Limpiar búsqueda"
+              >
+                <X size={14} strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveFilter('all')}
-            className={[
-              'shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors',
-              activeFilter === 'all'
-                ? 'bg-[var(--accent)] text-white border-transparent'
-                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]',
-            ].join(' ')}
-          >
-            Todas
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              setActiveFilter((prev) => (prev === 'favorites' ? 'all' : 'favorites'))
-            }
-            title="Solo favoritas"
-            aria-label="Solo favoritas"
-            className={[
-              'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
-              activeFilter === 'favorites'
-                ? 'border-transparent bg-[var(--accent)] text-white'
-                : 'border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--accent)]',
-            ].join(' ')}
-          >
-            <Star size={14} strokeWidth={ICON_STROKE} className={activeFilter === 'favorites' ? 'fill-current' : ''} aria-hidden />
-          </button>
-          {tags.map((tag) => (
-            <button
-              key={tag.id}
-              type="button"
-              onClick={() =>
-                setActiveFilter((prev) => (prev === tag.id ? 'all' : tag.id))
-              }
-              className={[
-                'shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors inline-flex items-center gap-1.5',
-                activeFilter === tag.id
-                  ? 'bg-[var(--accent)] text-white border-transparent'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]',
-              ].join(' ')}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || 'var(--accent)' }} />
-              {tag.name}
-            </button>
-          ))}
+          {songs.length > 0 && (
+            <div className="flex min-h-[2rem] flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+              <button
+                type="button"
+                onClick={() => setActiveFilter('all')}
+                className={[
+                  'shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors',
+                  activeFilter === 'all'
+                    ? 'bg-[var(--accent)] text-white border-transparent'
+                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]',
+                ].join(' ')}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveFilter((prev) => (prev === 'favorites' ? 'all' : 'favorites'))
+                }
+                title="Solo favoritas"
+                aria-label="Solo favoritas"
+                className={[
+                  'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors',
+                  activeFilter === 'favorites'
+                    ? 'border-transparent bg-[var(--accent)] text-white'
+                    : 'border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--accent)]',
+                ].join(' ')}
+              >
+                <Star size={12} strokeWidth={ICON_STROKE} className={activeFilter === 'favorites' ? 'fill-current' : ''} aria-hidden />
+              </button>
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() =>
+                    setActiveFilter((prev) => (prev === tag.id ? 'all' : tag.id))
+                  }
+                  className={[
+                    'shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors inline-flex items-center gap-1.5',
+                    activeFilter === tag.id
+                      ? 'bg-[var(--accent)] text-white border-transparent'
+                      : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]',
+                  ].join(' ')}
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || 'var(--accent)' }} />
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

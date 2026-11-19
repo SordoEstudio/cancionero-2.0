@@ -147,7 +147,7 @@ export function LoginForm() {
       <Button
         variant="secondary"
         size="lg"
-        className="w-full mb-6"
+        className="w-full mb-6 justify-center"
         onClick={handleGoogleLogin}
         loading={oauthLoading}
       >
