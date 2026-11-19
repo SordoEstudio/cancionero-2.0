@@ -305,12 +305,10 @@ export default function SetlistPage({ params }: { params: Promise<{ id: string }
 
   function playFirst() {
     const first = sortedSongs[0];
-    if (!first) return;
-    const href =
-      first.version_id != null
-        ? `/song/${first.song_id}?v=${encodeURIComponent(first.version_id)}`
-        : `/song/${first.song_id}`;
-    router.push(href);
+    if (!first || !routeId) return;
+    const params = new URLSearchParams({ setlistId: routeId, pos: '0' });
+    if (first.version_id) params.set('v', first.version_id);
+    router.push(`/song/${first.song_id}?${params.toString()}`);
   }
 
   if (!routeId) {
