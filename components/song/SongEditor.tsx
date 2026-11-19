@@ -1114,17 +1114,22 @@ export function SongEditor({
           >
             <Minimize2 size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
           </button>
-          {scrollPlaying && (
-            <button
-              type="button"
-              className={`${floatBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`}
-              title="Pausar scroll"
-              aria-label="Pausar scroll automático"
-              onClick={pauseAutoScroll}
-            >
-              <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
-            </button>
-          )}
+          <button
+            type="button"
+            className={
+              scrollPlaying
+                ? `${floatBtnClass} text-[var(--danger)] border-red-500/30 bg-red-500/10 hover:bg-red-500/15 dark:border-red-400/25`
+                : floatBtnClass
+            }
+            title={scrollPlaying ? 'Pausar scroll' : 'Iniciar scroll automático'}
+            aria-label={scrollPlaying ? 'Pausar scroll automático' : 'Iniciar scroll automático'}
+            onClick={toggleAutoScroll}
+          >
+            {scrollPlaying
+              ? <Pause size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+              : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+            }
+          </button>
         </div>
       )}
 
@@ -1351,9 +1356,9 @@ export function SongEditor({
         )}
       </div>
 
-      {!stageMode && !editMode && (
+      {!editMode && (
         <div
-          className="fixed bottom-4 left-1/2 z-[150] flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 px-2 py-1.5 shadow-lg backdrop-blur-sm md:bottom-6"
+          className={`fixed bottom-4 left-1/2 z-[150] flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 px-2 py-1.5 shadow-lg backdrop-blur-sm md:bottom-6${stageMode ? ' opacity-30 hover:opacity-100 transition-opacity' : ''}`}
           role="toolbar"
           aria-label="Velocidad de scroll, reproducción automática y secciones"
         >
