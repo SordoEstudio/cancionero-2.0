@@ -1422,7 +1422,7 @@ export function SongEditor({
         className={[
           'sticky z-[45] overflow-x-auto border-b border-[var(--border)] bg-[var(--bg-base)]/95 backdrop-blur-sm shadow-sm',
           topNavHidden ? 'top-0' : 'top-[52px]',
-          stageMode ? 'opacity-60 hover:opacity-100 transition-opacity' : '',
+          stageMode ? 'hidden' : '',
         ].join(' ')}
       >
         <div className="flex items-center gap-1.5 px-3 py-1.5">
