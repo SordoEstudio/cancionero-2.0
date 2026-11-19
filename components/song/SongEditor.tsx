@@ -61,6 +61,7 @@ interface SongEditorProps {
   activeVersion?: SongVersionActive;
   variantKey: string;
   setlistContext?: SetlistNavContext;
+  initialStageMode?: boolean;
 }
 
 type PrefsBaseline = {
@@ -352,6 +353,7 @@ export function SongEditor({
   activeVersion,
   variantKey,
   setlistContext,
+  initialStageMode,
 }: SongEditorProps) {
   const router = useRouter();
   const topNavHidden = useTopNavHidden();
@@ -410,7 +412,7 @@ export function SongEditor({
     if (typeof window === 'undefined') return 1;
     return parseFloat(localStorage.getItem('lyric-zoom') ?? '1');
   });
-  const [stageMode, setStageMode] = useState(() => !!setlistContext);
+  const [stageMode, setStageMode] = useState(() => initialStageMode ?? !!setlistContext);
   const [setlistOpen, setSetlistOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return { scroll: true, tone: true, view: true, zoom: true };
@@ -1003,6 +1005,7 @@ export function SongEditor({
     if (!setlistContext) return;
     const params = new URLSearchParams({ setlistId: setlistContext.setlistId, pos: String(newPos) });
     if (versionId) params.set('v', versionId);
+    if (stageMode) params.set('stage', '1');
     router.push(`/song/${songId}?${params.toString()}`);
   }
 
@@ -1433,11 +1436,13 @@ export function SongEditor({
               <button
                 key={section.id}
                 type="button"
-                onClick={() =>
-                  document
-                    .getElementById(`section-${section.id}`)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }
+                onClick={() => {
+                  const el = document.getElementById(`section-${section.id}`);
+                  if (!el) return;
+                  const navHeight = 44;
+                  const y = el.getBoundingClientRect().top + window.scrollY - navHeight;
+                  window.scrollTo({ top: y, behavior: 'smooth' });
+                }}
                 className={`shrink-0 rounded-full border px-3 py-0.5 text-xs font-medium transition-all ${
                   isActive
                     ? 'opacity-100 shadow-md ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg-base)] font-semibold scale-[1.02]'
@@ -1748,9 +1753,15 @@ export function SongEditor({
                   : <Play size={ICON_INLINE} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />}
               </button>
               {setlistContext && (
-                <span className="px-2 text-xs font-semibold tabular-nums text-[var(--text-secondary)]">
+                <button
+                  type="button"
+                  className="px-2 text-xs font-semibold tabular-nums text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
+                  title="Ver lista de canciones"
+                  aria-label="Ver lista de canciones del setlist"
+                  onClick={() => setSetlistOpen((o) => !o)}
+                >
                   {setlistContext.position + 1}/{setlistContext.total}
-                </span>
+                </button>
               )}
               <button
                 type="button"

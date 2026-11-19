@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: { v?: string; setlistId?: string; pos?: string };
+  searchParams?: { v?: string; setlistId?: string; pos?: string; stage?: string };
 }
 
 async function fetchSongPayload(id: string, versionId: string | undefined, cookieHeader: string) {
@@ -110,6 +110,7 @@ export default async function SongPage({ params, searchParams }: PageProps) {
   }
 
   const variantKey = `${payload.song.id}:${payload.activeVersion?.id ?? 'base'}`;
+  const initialStageMode = searchParams?.stage === '1' || !!setlistContext;
 
   return (
     <SongEditor
@@ -118,6 +119,7 @@ export default async function SongPage({ params, searchParams }: PageProps) {
       activeVersion={payload.activeVersion}
       variantKey={variantKey}
       setlistContext={setlistContext}
+      initialStageMode={initialStageMode}
     />
   );
 }
