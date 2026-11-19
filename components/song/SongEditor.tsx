@@ -1626,25 +1626,28 @@ export function SongEditor({
         />
       )}
 
-      {/* Mobile FAB speed-dial container */}
+      {/* Mobile FAB speed-dial — container is exactly FAB size; items are absolute so they don't shift FAB position */}
       {!stageMode && !editMode && (
-        <div className="md:hidden fixed bottom-4 right-4 z-[149] flex flex-col-reverse items-end gap-3">
-
-          {/* Item 1 — Tono */}
+        <div
+          className="md:hidden fixed bottom-4 right-4 z-[149]"
+          style={{ width: 56, height: 56 }}
+        >
+          {/* Item 1 — Tono (closest to FAB) */}
           <div
-            className="flex items-center gap-2"
+            className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
             style={{
+              bottom: 68,
               opacity: fabOpen ? 1 : 0,
-              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transform: fabOpen ? 'translateY(0)' : 'translateY(10px)',
               transition: 'opacity 150ms ease, transform 150ms ease',
               transitionDelay: fabOpen ? '0ms' : '0ms',
               pointerEvents: fabOpen ? 'auto' : 'none',
             }}
           >
-            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+            <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
               Tono
             </span>
-            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)] shadow-md">
+            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 shadow-md backdrop-blur-sm">
               <button
                 type="button"
                 aria-label="Bajar un semitono"
@@ -1669,23 +1672,24 @@ export function SongEditor({
 
           {/* Item 2 — Vista */}
           <div
-            className="flex items-center gap-2"
+            className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
             style={{
+              bottom: 124,
               opacity: fabOpen ? 1 : 0,
-              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transform: fabOpen ? 'translateY(0)' : 'translateY(10px)',
               transition: 'opacity 150ms ease, transform 150ms ease',
               transitionDelay: fabOpen ? '50ms' : '0ms',
               pointerEvents: fabOpen ? 'auto' : 'none',
             }}
           >
-            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+            <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
               {VIEW_MODE_LABELS[viewMode]}
             </span>
             <button
               type="button"
-              aria-label={`Cambiar vista (ahora: ${VIEW_MODE_LABELS[viewMode]})`}
+              aria-label={`Cambiar vista — ahora: ${VIEW_MODE_LABELS[viewMode]}`}
               onClick={() => setViewMode(nextViewMode(viewMode))}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-md hover:bg-[var(--bg-elevated)] transition-colors"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-md backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors"
             >
               {(() => { const Icon = VIEW_MODE_ICONS[viewMode]; return <Icon size={20} strokeWidth={ICON_STROKE} aria-hidden />; })()}
             </button>
@@ -1693,50 +1697,51 @@ export function SongEditor({
 
           {/* Item 3 — Escenario */}
           <div
-            className="flex items-center gap-2"
+            className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
             style={{
+              bottom: 184,
               opacity: fabOpen ? 1 : 0,
-              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transform: fabOpen ? 'translateY(0)' : 'translateY(10px)',
               transition: 'opacity 150ms ease, transform 150ms ease',
               transitionDelay: fabOpen ? '100ms' : '0ms',
               pointerEvents: fabOpen ? 'auto' : 'none',
             }}
           >
-            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+            <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
               Escenario
             </span>
             <button
               type="button"
               aria-label="Activar modo escenario"
               onClick={() => { setStageMode(true); setFabOpen(false); }}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-md hover:bg-[var(--bg-elevated)] transition-colors"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-md backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors"
             >
               <Maximize2 size={20} strokeWidth={ICON_STROKE} aria-hidden />
             </button>
           </div>
 
-          {/* Item 4 — Zoom */}
+          {/* Item 4 — Zoom (farthest from FAB) */}
           <div
-            className="flex items-center gap-2"
+            className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
             style={{
+              bottom: 244,
               opacity: fabOpen ? 1 : 0,
-              transform: fabOpen ? 'translateY(0)' : 'translateY(12px)',
+              transform: fabOpen ? 'translateY(0)' : 'translateY(10px)',
               transition: 'opacity 150ms ease, transform 150ms ease',
               transitionDelay: fabOpen ? '150ms' : '0ms',
               pointerEvents: fabOpen ? 'auto' : 'none',
             }}
           >
-            <span className="rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+            <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
               Zoom
             </span>
-            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)] shadow-md">
+            <div className="flex items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 shadow-md backdrop-blur-sm">
               <button
                 type="button"
                 aria-label="Reducir tamaño de texto"
                 onClick={() => {
                   const v = parseFloat(Math.max(0.7, chordZoom - 0.1).toFixed(1));
-                  setChordZoom(v);
-                  setLyricZoom(v);
+                  setChordZoom(v); setLyricZoom(v);
                 }}
                 className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold"
               >
@@ -1755,8 +1760,7 @@ export function SongEditor({
                 aria-label="Aumentar tamaño de texto"
                 onClick={() => {
                   const v = parseFloat(Math.min(2, chordZoom + 0.1).toFixed(1));
-                  setChordZoom(v);
-                  setLyricZoom(v);
+                  setChordZoom(v); setLyricZoom(v);
                 }}
                 className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors text-xs font-bold"
               >
@@ -1769,16 +1773,21 @@ export function SongEditor({
           <button
             type="button"
             title={fabOpen ? 'Cerrar opciones' : 'Opciones (tono, vista, zoom…)'}
-            aria-label={fabOpen ? 'Cerrar panel de opciones' : 'Abrir panel de opciones'}
+            aria-label={fabOpen ? 'Cerrar opciones' : 'Abrir opciones'}
             aria-expanded={fabOpen}
             onClick={() => setFabOpen((o) => !o)}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-xl transition-transform active:scale-95"
-            style={{ transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }}
+            className="absolute inset-0 flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-lg backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors active:scale-95"
+            style={{ transition: 'transform 200ms ease, background-color 150ms ease' }}
           >
-            {fabOpen
-              ? <Plus size={24} strokeWidth={ICON_STROKE} aria-hidden />
-              : <SlidersHorizontal size={22} strokeWidth={ICON_STROKE} aria-hidden />
-            }
+            <SlidersHorizontal
+              size={22}
+              strokeWidth={ICON_STROKE}
+              aria-hidden
+              style={{
+                transform: fabOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 200ms ease',
+              }}
+            />
           </button>
         </div>
       )}
