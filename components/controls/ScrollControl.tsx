@@ -31,6 +31,7 @@ export interface ScrollControlProps {
   playing: boolean;
   onTogglePlay: () => void;
   onReset: () => void;
+  hideTitle?: boolean;
 }
 
 export function ScrollControl({
@@ -39,14 +40,17 @@ export function ScrollControl({
   playing,
   onTogglePlay,
   onReset,
+  hideTitle,
 }: ScrollControlProps) {
   const playIcon = lucideDecorative(ICON_INLINE);
 
   return (
     <div className="flex flex-col gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)]">
-      <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-        Scroll automático
-      </p>
+      {!hideTitle && (
+        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+          Scroll automático
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         <button

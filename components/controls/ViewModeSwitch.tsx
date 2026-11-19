@@ -38,6 +38,7 @@ interface ViewModeSwitchProps {
   hasTabs?: boolean;
   allTabsHidden?: boolean;
   onToggleTabs?: () => void;
+  hideTitle?: boolean;
 }
 
 export function ViewModeSwitch({
@@ -46,12 +47,15 @@ export function ViewModeSwitch({
   hasTabs,
   allTabsHidden,
   onToggleTabs,
+  hideTitle,
 }: ViewModeSwitchProps) {
   return (
     <div className="flex flex-col gap-2 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)]">
-      <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-        Visualización
-      </p>
+      {!hideTitle && (
+        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+          Visualización
+        </p>
+      )}
       <div className="flex flex-row gap-1.5">
         {MODES.map(({ value: v, title, Icon }) => (
           <button

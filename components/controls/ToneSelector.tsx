@@ -14,6 +14,7 @@ interface ToneSelectorProps {
   useFlats?: boolean;
   onTransposeChange: (steps: number) => void;
   onCapoChange: (capo: number) => void;
+  hideTitle?: boolean;
 }
 
 export function ToneSelector({
@@ -23,6 +24,7 @@ export function ToneSelector({
   useFlats = false,
   onTransposeChange,
   onCapoChange,
+  hideTitle,
 }: ToneSelectorProps) {
   /** Tonalidad que querés que suene (selector de tono). */
   const playingKey = originalKey
@@ -37,9 +39,11 @@ export function ToneSelector({
 
   return (
     <div className="flex flex-col gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)]">
-      <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-        Tono
-      </p>
+      {!hideTitle && (
+        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+          Tono
+        </p>
+      )}
 
       {/* Selector de tono */}
       <div className="flex items-center gap-2">

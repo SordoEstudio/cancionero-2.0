@@ -1368,13 +1368,21 @@ export function SongEditor({
         </main>
 
         {panelOpen && !stageMode && (
+          <>
+            {/* Mobile backdrop — closes panel when tapping outside */}
+            <div
+              className="md:hidden fixed inset-0 z-[99]"
+              onClick={() => setPanelOpen(false)}
+            />
           <aside
             aria-label="Tono, scroll automático, vista y tamaño de texto"
             className={[
-              'w-full shrink-0 border-[var(--border)] bg-[var(--bg-surface)]',
-              'border-t md:w-64 md:border-l md:border-t-0',
-              'max-h-[min(28rem,78svh)] overflow-y-auto overscroll-y-contain md:max-h-none',
-              'md:sticky md:top-16 md:h-[calc(100vh-4rem)]',
+              'shrink-0 border-[var(--border)] bg-[var(--bg-surface)]',
+              'fixed bottom-0 left-0 right-0 z-[100]',
+              'border-t rounded-t-2xl shadow-xl',
+              'max-h-[70svh] overflow-y-auto overscroll-y-contain',
+              'md:w-64 md:border-l md:border-t-0 md:rounded-none md:shadow-none',
+              'md:max-h-none md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:overflow-y-auto md:overscroll-y-contain',
             ].join(' ')}
           >
             {!editMode && (
@@ -1395,6 +1403,7 @@ export function SongEditor({
                       playing={scrollPlaying}
                       onTogglePlay={toggleAutoScroll}
                       onReset={resetAutoScroll}
+                      hideTitle
                     />
                   </div>
                 )}
@@ -1419,6 +1428,7 @@ export function SongEditor({
                     useFlats={useFlats}
                     onTransposeChange={setTransposeSteps}
                     onCapoChange={setCapo}
+                    hideTitle
                   />
                 </div>
               )}
@@ -1442,6 +1452,7 @@ export function SongEditor({
                       hasTabs={hasTabs}
                       allTabsHidden={allTabsHidden}
                       onToggleTabs={toggleAllTabs}
+                      hideTitle
                     />
                   </div>
                 )}
@@ -1522,6 +1533,7 @@ export function SongEditor({
               </a>
             </div>
           </aside>
+          </>
         )}
       </div>
 
