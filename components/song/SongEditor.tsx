@@ -29,6 +29,7 @@ import {
   List,
   Maximize2,
   Menu,
+  Mic,
   Minimize2,
   Minus,
   Music2,
@@ -46,6 +47,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { ICON_INLINE, ICON_STROKE } from '@/components/ui/icon-tokens';
 import { IconButton, lucideInIconButton } from '@/components/ui/IconButton';
+import { Tuner } from '@/components/tuner/Tuner';
 import { Button } from '@/components/ui/Button';
 import { TextPromptDialog } from '@/components/ui/TextPromptDialog';
 import {
@@ -184,6 +186,7 @@ interface PanelSectionsProps {
   setNotes: (v: string) => void;
   notesOpen: boolean;
   setNotesOpen: (fn: (o: boolean) => boolean) => void;
+  onOpenTuner: () => void;
 }
 
 function PanelSections({
@@ -193,6 +196,7 @@ function PanelSections({
   viewMode, setViewMode, hasTabs, allTabsHidden, toggleAllTabs,
   chordZoom, setChordZoom, lyricZoom, setLyricZoom,
   notes, setNotes, notesOpen, setNotesOpen,
+  onOpenTuner,
 }: PanelSectionsProps) {
   return (
     <>
@@ -335,6 +339,20 @@ function PanelSections({
         )}
       </div>
 
+      <div className="border-b border-[var(--border)]">
+        <button
+          type="button"
+          onClick={onOpenTuner}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Mic size={12} strokeWidth={ICON_STROKE} className="shrink-0" aria-hidden />
+            Afinador
+          </span>
+          <ChevronDown size={12} strokeWidth={ICON_STROKE} className="-rotate-90 shrink-0" aria-hidden />
+        </button>
+      </div>
+
       <div className="px-3 py-3 text-xs text-[var(--text-muted)] space-y-1">
         {song.original_key && (
           <p>Tono original: <span className="font-mono text-[var(--chord-color)]">{song.original_key}</span></p>
@@ -389,6 +407,7 @@ export function SongEditor({
   const [panelOpen, setPanelOpen] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [stageFabOpen, setStageFabOpen] = useState(false);
+  const [tunerOpen, setTunerOpen] = useState(false);
   const songHeaderRef = useRef<HTMLElement>(null);
   const [songHeaderInView, setSongHeaderInView] = useState(true);
 
@@ -1537,6 +1556,7 @@ export function SongEditor({
               setNotes={setNotes}
               notesOpen={notesOpen}
               setNotesOpen={setNotesOpen}
+              onOpenTuner={() => setTunerOpen(true)}
             />
           </aside>
         )}
@@ -1691,6 +1711,31 @@ export function SongEditor({
                 A<span className="text-[10px]">+</span>
               </button>
             </div>
+          </div>
+
+          {/* Item 5 — Afinador */}
+          <div
+            className="absolute right-0 flex items-center gap-2 whitespace-nowrap"
+            style={{
+              bottom: 304,
+              opacity: fabOpen ? 1 : 0,
+              transform: fabOpen ? 'translateY(0)' : 'translateY(10px)',
+              transition: 'opacity 150ms ease, transform 150ms ease',
+              transitionDelay: fabOpen ? '200ms' : '0ms',
+              pointerEvents: fabOpen ? 'auto' : 'none',
+            }}
+          >
+            <span className="rounded-md bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              Afinador
+            </span>
+            <button
+              type="button"
+              aria-label="Abrir afinador"
+              onClick={() => { setTunerOpen(true); setFabOpen(false); }}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-surface)]/95 text-[var(--text-primary)] shadow-md backdrop-blur-sm hover:bg-[var(--bg-elevated)] transition-colors"
+            >
+              <Mic size={20} strokeWidth={ICON_STROKE} aria-hidden />
+            </button>
           </div>
 
           {/* Main FAB */}
@@ -1905,6 +1950,19 @@ export function SongEditor({
                 }}
               />
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Tuner modal */}
+      {tunerOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm"
+            onClick={() => setTunerOpen(false)}
+          />
+          <div className="fixed bottom-24 right-4 z-[201] w-72 rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl md:bottom-auto md:right-8 md:top-1/2 md:-translate-y-1/2">
+            <Tuner onClose={() => setTunerOpen(false)} />
           </div>
         </>
       )}
